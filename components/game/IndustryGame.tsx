@@ -91,18 +91,19 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   };
 
   // Handle player decision
-  const makeDecision = (choice: any) => {
+  const makeDecision = (choice: CardChoice) => {
     if (!gameState || isProcessingDecision) return;
     setIsProcessingDecision(true);
+    // Use the effect values as-is (already scaled and rounded by backend)
     setEffects({
-      cash: choice.effects.cash || 0,
-      revenue: choice.effects.revenue || 0,
-      expenses: choice.effects.expenses || 0
+      cash: choice.cash || 0,
+      revenue: choice.revenue || 0,
+      expenses: choice.expenses || 0
     });
     setTimeout(() => {
-      updateCash(choice.effects.cash || 0);
-      updateRevenue(choice.effects.revenue || 0);
-      updateExpenses(choice.effects.expenses || 0);
+      updateCash(choice.cash || 0);
+      updateRevenue(choice.revenue || 0);
+      updateExpenses(choice.expenses || 0);
       // Update month counter - every 2 cards = 1 month
       const newCardsThisMonth = cardsThisMonth + 1;
       setCardsThisMonth(newCardsThisMonth);

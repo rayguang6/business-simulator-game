@@ -54,63 +54,78 @@ export async function getIndustry(industryId: string): Promise<Industry | null> 
   };
 }
 
+function getRandomInRange(min: number, max: number) {
+  if (typeof min !== 'number' || typeof max !== 'number') return 0;
+  if (min === max) return min;
+
+  // Make sure min and max are divisible by 100
+  const scaledMin = Math.ceil(min / 100);
+  const scaledMax = Math.floor(max / 100);
+
+  const randomScaled = Math.floor(Math.random() * (scaledMax - scaledMin + 1)) + scaledMin;
+  return randomScaled * 100;
+}
+
+// For customer rating
+function getRandomInt(min: number, max: number) {
+  if (typeof min !== 'number' || typeof max !== 'number') return 0;
+  if (min === max) return min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 // Get all cards for a specific industry with their choices
-export async function getCardsByIndustry(industryId: string) {
-    const supabase = createServerSupabaseClient();
-    
-    // Get all cards for the industry
-    const { data: cardsData, error: cardsError } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('industry_id', industryId);
-      
-    if (cardsError) {
-      console.error(`Error fetching cards for industry ${industryId}:`, cardsError);
-      return [];
-    }
-    
-    // Get all choices for each card
-    const cards = await Promise.all(cardsData.map(async (card) => {
-      const { data: choicesData, error: choicesError } = await supabase
-        .from('card_choices')
-        .select('*')
-        .eq('card_id', card.id);
-        
-      if (choicesError) {
-        console.error(`Error fetching choices for card ${card.id}:`, choicesError);
-        return null;
-      }
-      
-      // Format choices to match the game's expected structure
-      const choices = choicesData.map(choice => ({
-        label: choice.label,
-        description: choice.description,
-        effects: {
-          cash: choice.cash_effect,
-          revenue: choice.revenue_effect,
-          expenses: choice.expenses_effect,
-          duration: choice.duration,
-          ...(choice.delayed_cash_value && choice.delayed_cash_months ? {
-            delayed_cash: {
-              value: choice.delayed_cash_value,
-              months: choice.delayed_cash_months
-            }
-          } : {})
-        }
-      }));
-      
-      return {
-        id: card.id,
-        type: card.type,
-        question: card.question,
-        choiceTitle: card.choice_title,
-        choices
-      };
-    }));
-    
-    // Remove any null entries (from cards where choices couldn't be loaded)
-    return cards.filter(card => card !== null);
+export async function getCardsByIndustry(industryId: string): Promise<Card[]> {
+  const supabase = createServerSupabaseClient();
+
+  // Get all cards for the industry
+  const { data: cardsData, error: cardsError } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('industry_id', industryId);
+
+  if (cardsError) {
+    console.error(`Error fetching cards for industry ${industryId}:`, cardsError);
+    return [];
   }
+
+  // Get all choices for each card
+  const cards = await Promise.all(cardsData.map(async (card) => {
+    const { data: choicesData, error: choicesError } = await supabase
+      .from('card_choices')
+      .select('*')
+      .eq('card_id', card.id);
+
+    if (choicesError) {
+      console.error(`Error fetching choices for card ${card.id}:`, choicesError);
+      return null;
+    }
+
+    // Randomize effects for each choice
+    const choices = choicesData.map(choice => ({
+      label: choice.label,
+      description: choice.description,
+      cash: getRandomInRange(choice.cash_min, choice.cash_max),
+      revenue: getRandomInRange(choice.revenue_min, choice.revenue_max),
+      expenses: getRandomInRange(choice.expenses_min, choice.expenses_max),
+      customerRating: getRandomInt(choice.customer_rating_min, choice.customer_rating_max),
+      duration: choice.duration
+    }));
+
+    return {
+      id: card.id,
+      type: card.type,
+      title: card.title,
+      description: card.description,
+      stage_month: card.stage_month,
+      min_cash: card.min_cash,
+      max_cash: card.max_cash,
+      choices
+    };
+  }));
+
+  // Remove any null entries (from cards where choices couldn't be loaded)
+  return cards.filter(card => card !== null) as Card[];
+}
 
 // For the admin page - get all cards with basic info (no choices)
 export async function getAllCards() {

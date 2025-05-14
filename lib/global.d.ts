@@ -9,18 +9,25 @@ interface Industry {
   isAvailable: boolean;
 }
 
+interface CardChoice {
+  label: string;
+  description: string;
+  cash: number;
+  revenue: number;
+  expenses: number;
+  customerRating: number;
+  duration: number;
+}
+
 interface Card {
-  id: string;
+  id: number;
   type: string;
-  question: string;
-  choices: {
-    label: string;
-    description: string;
-    cashEffect: number;
-    revenueEffect: number;
-    expensesEffect: number;
-    duration: number;
-  }[];
+  title: string;
+  description: string;
+  stage_month?: number;
+  min_cash?: number;
+  max_cash?: number;
+  choices: CardChoice[];
 }
 
 interface GameState {
