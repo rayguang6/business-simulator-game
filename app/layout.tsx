@@ -6,7 +6,7 @@ export const metadata = {
   description: 'Build your business empire and become a tycoon!',
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -15,7 +15,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-['Poppins',sans-serif] antialiased">
+      <body className="font-['Poppins',sans-serif] antialiased h-screen">
         {children}
       </body>
     </html>

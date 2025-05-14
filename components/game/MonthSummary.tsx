@@ -22,7 +22,6 @@ export default function MonthSummary({ summary, onClose }) {
           <span className="text-xl font-semibold text-white">${summary.revenue.toLocaleString()}</span>
         </div>
         
-        // components/game/MonthSummary.jsx (continued)
         <div className="flex justify-between items-center p-3 bg-slate-800 rounded-lg border border-slate-600">
           <span className="font-medium flex items-center text-red-400">
             <span className="mr-2">📉</span>

@@ -2,7 +2,7 @@
 import { deleteCard } from '@/lib/game-data/data-service';
 import { NextResponse } from 'next/server';
 
-export async function DELETE(request) {
+export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const cardId = searchParams.get('id');
@@ -27,7 +27,7 @@ export async function DELETE(request) {
   } catch (error) {
     console.error('Error deleting card:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: (error as { message?: string }).message || 'Internal server error' },
       { status: 500 }
     );
   }

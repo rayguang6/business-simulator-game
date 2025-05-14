@@ -2,12 +2,14 @@
 import { createServerSupabaseClient } from '../supabase';
 
 // Get all industries
-export async function getIndustries() {
+export async function getIndustries(): Promise<Industry[]> {
   const supabase = createServerSupabaseClient();
   
   const { data, error } = await supabase
     .from('industries')
-    .select('*');
+    .select('*')
+    .order('is_available', { ascending: false })
+    .order('name', { ascending: true }); // or any other secondary sort
     
   if (error) {
     console.error('Error fetching industries:', error);
@@ -21,13 +23,39 @@ export async function getIndustries() {
     icon: industry.icon,
     startingCash: industry.starting_cash,
     startingRevenue: industry.starting_revenue,
-    startingExpenses: industry.starting_expenses
+    startingExpenses: industry.starting_expenses,
+    isAvailable: industry.is_available || false
   }));
 }
 
+// Get a single industry by ID
+export async function getIndustry(industryId: string): Promise<Industry | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('industries')
+    .select('*')
+    .eq('id', industryId)
+    .single();
+
+  if (error) {
+    console.error(`Error fetching industry ${industryId}:`, error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    icon: data.icon,
+    startingCash: data.starting_cash,
+    startingRevenue: data.starting_revenue,
+    startingExpenses: data.starting_expenses,
+    isAvailable: data.is_available || false
+  };
+}
+
 // Get all cards for a specific industry with their choices
-// lib/game-data/data-service.js (update the getCardsByIndustry function)
-export async function getCardsByIndustry(industryId) {
+export async function getCardsByIndustry(industryId: string) {
     const supabase = createServerSupabaseClient();
     
     // Get all cards for the industry
@@ -105,7 +133,7 @@ export async function getAllCards() {
 }
 
 // Get a single card with its choices for editing
-export async function getCardForEditing(cardId) {
+export async function getCardForEditing(cardId: string) {
   const supabase = createServerSupabaseClient();
   
   // Get the card
@@ -135,7 +163,7 @@ export async function getCardForEditing(cardId) {
 }
 
 // Create/update a card and its choices
-export async function saveCard(cardData) {
+export async function saveCard(cardData: any) {
   const supabase = createServerSupabaseClient();
   
   // Start a transaction
@@ -166,7 +194,7 @@ export async function saveCard(cardData) {
     }
     
     // 3. Insert new choices
-    const choicesToInsert = cardData.choices.map(choice => ({
+    const choicesToInsert = cardData.choices.map((choice: any) => ({
       card_id: cardData.id,
       label: choice.label,
       description: choice.description,
@@ -193,7 +221,7 @@ export async function saveCard(cardData) {
 }
 
 // Delete a card (choices will cascade delete)
-export async function deleteCard(cardId) {
+export async function deleteCard(cardId: string) {
   const supabase = createServerSupabaseClient();
   
   const { error } = await supabase
@@ -208,3 +236,4 @@ export async function deleteCard(cardId) {
   
   return { success: true };
 }
+

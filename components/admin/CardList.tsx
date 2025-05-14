@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-export default function CardList({ initialCards }) {
+export default function CardList({ initialCards }: { initialCards: any }) {
   const router = useRouter();
   const [cards, setCards] = useState(initialCards);
   const [cardToDelete, setCardToDelete] = useState(null);
@@ -13,7 +13,7 @@ export default function CardList({ initialCards }) {
   const [error, setError] = useState(null);
   
   // Open delete confirmation
-  const confirmDelete = (card) => {
+  const confirmDelete = (card: any) => {
     setCardToDelete(card);
   };
   
@@ -41,10 +41,10 @@ export default function CardList({ initialCards }) {
       }
       
       // Remove the card from the list
-      setCards(cards.filter(card => card.id !== cardToDelete.id));
+      setCards(cards.filter((card: any) => card.id !== cardToDelete.id));
       setCardToDelete(null);
       router.refresh();
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsDeleting(false);

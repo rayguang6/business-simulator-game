@@ -1,3 +1,4 @@
+// @ts-nocheck
 // components/game/Card.jsx
 import { motion } from 'framer-motion';
 

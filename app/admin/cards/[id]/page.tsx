@@ -3,7 +3,7 @@ import { getCardForEditing, getIndustries } from '@/lib/game-data/data-service';
 import CardForm from '@/components/admin/CardForm';
 import { notFound } from 'next/navigation';
 
-export default async function EditCardPage({ params }) {
+export default async function EditCardPage({ params }: { params: { id: string } }) {
   const { id } = params;
   
   // For new cards
@@ -12,7 +12,7 @@ export default async function EditCardPage({ params }) {
     return (
       <div className="p-8 max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Create New Card</h1>
-        <CardForm industries={industries} />
+        <CardForm industries={industries} card={undefined} />
       </div>
     );
   }

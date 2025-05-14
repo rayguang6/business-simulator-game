@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function CardForm({ card, industries }) {
+export default function CardForm({ card, industries }: { card: any, industries: any }) {
   const router = useRouter();
   const isNewCard = !card;
   
@@ -43,7 +43,7 @@ export default function CardForm({ card, industries }) {
   };
   
   // Handle choice field changes
-  const handleChoiceChange = (index, field, value) => {
+  const handleChoiceChange = (index: number, field: string, value: any) => {
     setFormData(prev => {
       const newChoices = [...prev.choices];
       newChoices[index] = { ...newChoices[index], [field]: value };
@@ -60,7 +60,7 @@ export default function CardForm({ card, industries }) {
   };
   
   // Remove a choice
-  const removeChoice = (index) => {
+  const removeChoice = (index: number) => {
     if (formData.choices.length <= 2) {
       setError('A card must have at least 2 choices');
       return;
