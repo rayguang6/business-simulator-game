@@ -22,6 +22,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/layout.js", "lib/game-data/industries.js", "lib/game-data/cards.js", "components/game/MonthSummary.js", "components/game/Dashboard.js", "components/game/Card.js", "app/page.js", "app/[industry]/page.js"],
   "exclude": ["node_modules"]
 }
