@@ -1,44 +1,87 @@
-// components/admin/CardForm.jsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { PlusCircle, MinusCircle } from 'lucide-react';
 
-export default function CardForm({ card, industries }: { card: any, industries: any }) {
-  const router = useRouter();
+// Define the interface for the card form data
+interface CardFormProps {
+  card?: any; // Using any for now, will refine when you finalize your CardFormData interface
+  industries: Industry[];
+}
+
+export default function CardForm({ card, industries }: CardFormProps) {
   const isNewCard = !card;
+  const router = useRouter();
   
   // Initialize form state
   const [formData, setFormData] = useState({
     id: card?.id || '',
-    industry_id: card?.industry_id || industries[0]?.id || '',
+    industry_id: card?.industry_id || (industries[0]?.id || ''),
     type: card?.type || 'Opportunity',
-    question: card?.question || '',
-    choice_title: card?.choice_title || '',
+    title: card?.title || '',
+    description: card?.description || '',
+    stage_month: card?.stage_month || null,
+    min_cash: card?.min_cash || null,
+    max_cash: card?.max_cash || null,
+    probability: card?.probability || 100, // Default to 100% probability
     choices: card?.choices?.length ? card.choices : [
-      { label: 'Option 1', description: '', cash_effect: 0, revenue_effect: 0, expenses_effect: 0, duration: 1 },
-      { label: 'Option 2', description: '', cash_effect: 0, revenue_effect: 0, expenses_effect: 0, duration: 1 }
+      { 
+        label: 'Yes', 
+        description: '',
+        cash_min: 0,
+        cash_max: 0,
+        revenue_min: 0,
+        revenue_max: 0,
+        expenses_min: 0,
+        expenses_max: 0,
+        customer_rating_min: 0,
+        customer_rating_max: 0,
+        duration: 1
+      },
+      { 
+        label: 'No', 
+        description: '',
+        cash_min: 0,
+        cash_max: 0,
+        revenue_min: 0,
+        revenue_max: 0,
+        expenses_min: 0,
+        expenses_max: 0,
+        customer_rating_min: 0,
+        customer_rating_max: 0,
+        duration: 1
+      }
     ]
   });
   
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   
   // Generate ID based on type
-  const generateCardId = (type) => {
-    const prefix = type.toLowerCase().substring(0, 4);
+  const generateCardId = () => {
+    const prefix = formData.type.toLowerCase().substring(0, 4);
     const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     return `${prefix}-${randomNum}`;
   };
   
   // Handle form field changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    
+    // Handle number inputs
+    if (type === 'number') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value === '' ? null : Number(value)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
     
     // Auto-generate ID when type changes for new cards
     if (isNewCard && name === 'type') {
-      setFormData(prev => ({ ...prev, id: generateCardId(value) }));
+      setFormData(prev => ({ ...prev, id: generateCardId() }));
     }
   };
   
@@ -55,7 +98,19 @@ export default function CardForm({ card, industries }: { card: any, industries: 
   const addChoice = () => {
     setFormData(prev => ({
       ...prev,
-      choices: [...prev.choices, { label: `Option ${prev.choices.length + 1}`, description: '', cash_effect: 0, revenue_effect: 0, expenses_effect: 0, duration: 1 }]
+      choices: [...prev.choices, { 
+        label: `Option ${prev.choices.length + 1}`, 
+        description: '',
+        cash_min: 0,
+        cash_max: 0,
+        revenue_min: 0,
+        revenue_max: 0,
+        expenses_min: 0,
+        expenses_max: 0,
+        customer_rating_min: 0,
+        customer_rating_max: 0,
+        duration: 1
+      }]
     }));
   };
   
@@ -73,7 +128,7 @@ export default function CardForm({ card, industries }: { card: any, industries: 
   };
   
   // Save the card
-  const saveCard = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -82,89 +137,86 @@ export default function CardForm({ card, industries }: { card: any, industries: 
       // Generate a new ID for new cards if not already set
       const dataToSave = { ...formData };
       if (isNewCard && !dataToSave.id) {
-        dataToSave.id = generateCardId(dataToSave.type);
+        dataToSave.id = generateCardId();
       }
       
       // Make API call to save the card
-      const response = await fetch('/api/admin/save-card', {
-        method: 'POST',
+      const response = await fetch('/api/admin/cards', {
+        method: isNewCard ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSave)
       });
       
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save card');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save card');
       }
       
-      // Redirect back to admin page on success
-      router.push('/admin');
+      // Redirect back to cards page
+      router.push('/admin/cards');
       router.refresh();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
   
-  // Helper for effect description
-  const getEffectDescription = (value, type) => {
-    if (value === 0) return 'No change';
-    
-    const prefix = value > 0 ? 'Increase' : 'Decrease';
-    
+  // Get card type style
+  const getCardTypeStyle = (type: string) => {
     switch (type) {
-      case 'cash':
-        return `${prefix} cash by $${Math.abs(value).toLocaleString()}`;
-      case 'revenue':
-        return `${prefix} monthly revenue by $${Math.abs(value).toLocaleString()}`;
-      case 'expenses':
-        return `${prefix} monthly expenses by $${Math.abs(value).toLocaleString()}`;
+      case 'Opportunity':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'Problem':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'Market':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Happy':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default:
-        return `${prefix} by ${Math.abs(value)}`;
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
   
   return (
-    <form onSubmit={saveCard} className="bg-gray-100 p-6 rounded-lg shadow-md border border-gray-300">
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md">
       {error && (
         <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
           {error}
         </div>
       )}
       
-      <div className="mb-4">
-        <label className="block text-gray-700 font-medium mb-2">
-          Card ID
-        </label>
-        <div className="flex">
-          <input
-            type="text"
-            name="id"
-            value={formData.id}
-            onChange={handleChange}
-            disabled={!isNewCard}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200 text-gray-700"
-            placeholder="Example: opp-001, prob-002, etc."
-          />
-          {isNewCard && (
-            <button
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, id: generateCardId(prev.type) }))}
-              className="ml-2 px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-              title="Generate ID based on type"
-            >
-              Generate
-            </button>
-          )}
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div>
+          <label className="block text-gray-700 font-medium mb-2">
+            Card ID
+          </label>
+          <div className="flex">
+            <input
+              type="text"
+              name="id"
+              value={formData.id}
+              onChange={handleChange}
+              disabled={!isNewCard}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-gray-700"
+              placeholder="opp-001"
+            />
+            {isNewCard && (
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, id: generateCardId() }))}
+                className="ml-2 px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                title="Generate ID based on type"
+              >
+                Generate
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Unique identifier for the card
+          </p>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          ID format should be: type prefix (e.g., opp-, prob-) followed by a number
-        </p>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4 mb-4">
+        
         <div>
           <label className="block text-gray-700 font-medium mb-2">
             Industry
@@ -173,7 +225,7 @@ export default function CardForm({ card, industries }: { card: any, industries: 
             name="industry_id"
             value={formData.industry_id}
             onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
           >
             {industries.map(industry => (
               <option key={industry.id} value={industry.id}>
@@ -191,78 +243,159 @@ export default function CardForm({ card, industries }: { card: any, industries: 
             name="type"
             value={formData.type}
             onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 ${getCardTypeStyle(formData.type)}`}
           >
             <option value="Opportunity">Opportunity</option>
             <option value="Problem">Problem</option>
             <option value="Market">Market</option>
             <option value="Happy">Happy</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Type affects the card appearance and ID generation
-          </p>
         </div>
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-gray-700 font-medium mb-2">
-          Question/Scenario
-        </label>
-        <input
-          type="text"
-          name="question"
-          value={formData.question}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-          placeholder="Example: A popular social media influencer has offered to promote your coffee shop"
-          required
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          The main scenario or situation presented to the player
-        </p>
       </div>
       
       <div className="mb-6">
         <label className="block text-gray-700 font-medium mb-2">
-          Choice Title
+          Card Title
         </label>
         <input
           type="text"
-          name="choice_title"
-          value={formData.choice_title}
+          name="title"
+          value={formData.title}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-          placeholder="Example: Hire the influencer? / What will you do?"
           required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          placeholder="A popular social media influencer has offered to promote your coffee shop"
         />
+      </div>
+      
+      <div className="mb-6">
+        <label className="block text-gray-700 font-medium mb-2">
+          Description
+        </label>
+        <textarea
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          placeholder="Additional details about the card scenario"
+        />
+      </div>
+      
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div>
+          <label className="block text-gray-700 font-medium mb-2">
+            Stage Month (Optional)
+          </label>
+          <input
+            type="number"
+            name="stage_month"
+            value={formData.stage_month === null ? '' : formData.stage_month}
+            onChange={handleChange}
+            min={1}
+            // components/admin/CardForm.tsx (continued)
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+            placeholder="e.g., 3"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Month when this card should appear (leave empty for random)
+          </p>
+        </div>
+        
+        <div>
+          <label className="block text-gray-700 font-medium mb-2">
+            Min Cash Requirement
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+            <input
+              type="number"
+              name="min_cash"
+              value={formData.min_cash === null ? '' : formData.min_cash}
+              onChange={handleChange}
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              placeholder="Minimum cash needed"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Minimum cash required for this card to appear
+          </p>
+        </div>
+        
+        <div>
+          <label className="block text-gray-700 font-medium mb-2">
+            Max Cash Limit
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+            <input
+              type="number"
+              name="max_cash"
+              value={formData.max_cash === null ? '' : formData.max_cash}
+              onChange={handleChange}
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              placeholder="Maximum cash limit"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Maximum cash limit for this card to appear
+          </p>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <label className="block text-gray-700 font-medium mb-2">
+          Probability (%)
+        </label>
+        <div className="flex items-center">
+          <input
+            type="range"
+            name="probability"
+            value={formData.probability}
+            onChange={handleChange}
+            min={1}
+            max={100}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          />
+          <span className="ml-3 w-12 text-center text-gray-700 font-medium">
+            {formData.probability}%
+          </span>
+        </div>
         <p className="text-xs text-gray-500 mt-1">
-          The question that prompts the player to make a choice
+          Likelihood of this card appearing in the game (100% = Always included in deck)
         </p>
       </div>
       
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-800">Choices</h3>
+          <h3 className="text-lg font-medium text-gray-800">Card Choices</h3>
           <button
             type="button"
             onClick={addChoice}
-            className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+            className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            <span className="mr-1">+</span> Add Choice
+            <PlusCircle size={16} className="mr-1" /> Add Choice
           </button>
         </div>
         
         <div className="space-y-6">
           {formData.choices.map((choice, index) => (
-            <div key={index} className="p-4 border border-gray-300 rounded-md bg-white shadow-sm">
+            <div 
+              key={index} 
+              className={`p-4 border rounded-md shadow-sm ${
+                index % 2 === 0 
+                  ? 'bg-white border-blue-200' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}
+            >
               <div className="flex justify-between mb-3">
                 <h4 className="font-medium text-gray-800">Choice {index + 1}</h4>
                 <button
                   type="button"
                   onClick={() => removeChoice(index)}
-                  className="text-red-600 hover:text-red-800"
+                  className="text-red-600 hover:text-red-800 flex items-center"
                 >
-                  Remove
+                  <MinusCircle size={16} className="mr-1" /> Remove
                 </button>
               </div>
               
@@ -275,13 +408,10 @@ export default function CardForm({ card, industries }: { card: any, industries: 
                     type="text"
                     value={choice.label}
                     onChange={(e) => handleChoiceChange(index, 'label', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-                    placeholder="Example: Yes, No, Buy New, etc."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                    placeholder="e.g., Yes, No, Buy New, etc."
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Short text for the choice button
-                  </p>
                 </div>
                 
                 <div>
@@ -292,12 +422,12 @@ export default function CardForm({ card, industries }: { card: any, industries: 
                     type="number"
                     value={choice.duration}
                     onChange={(e) => handleChoiceChange(index, 'duration', parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                    min={1}
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    How many months the effects last (1 = one-time)
+                    How many months effects last
                   </p>
                 </div>
               </div>
@@ -309,236 +439,159 @@ export default function CardForm({ card, industries }: { card: any, industries: 
                 <textarea
                   value={choice.description}
                   onChange={(e) => handleChoiceChange(index, 'description', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-                  rows="2"
-                  placeholder="Example: Pay $3,000 for a promotional campaign"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                  rows={2}
+                  placeholder="e.g., Pay $3,000 for a promotional campaign"
                   required
                 ></textarea>
-                <p className="text-xs text-gray-500 mt-1">
-                  Detailed explanation of what this choice entails
-                </p>
               </div>
               
-              <div className="bg-gray-50 p-4 rounded-md border border-gray-200 mb-3">
-                <h5 className="font-medium text-gray-700 mb-3">Effects</h5>
-                
-                {/* Cash Effect with better UX */}
-                <div className="mb-4">
-                  <label className="block text-gray-700 text-sm mb-1">
-                    Cash Effect
-                  </label>
-                  <div className="flex items-center">
-                    <select
-                      value={choice.cash_effect < 0 ? 'decrease' : choice.cash_effect > 0 ? 'increase' : 'none'}
-                      onChange={(e) => {
-                        const action = e.target.value;
-                        const currentValue = Math.abs(choice.cash_effect) || 0;
-                        let newValue = 0;
-                        
-                        if (action === 'increase') newValue = currentValue || 1000;
-                        else if (action === 'decrease') newValue = -(currentValue || 1000);
-                        
-                        handleChoiceChange(index, 'cash_effect', newValue);
-                      }}
-                      className="py-2 px-3 border border-gray-300 rounded-l-md text-sm text-gray-700 bg-white"
-                    >
-                      <option value="none">No Change</option>
-                      <option value="increase">Increase Cash</option>
-                      <option value="decrease">Decrease Cash</option>
-                    </select>
-                    
-                    <span className="bg-gray-200 px-3 py-2 text-gray-700">$</span>
-                    
-                    <input
-                      type="number"
-                      value={Math.abs(choice.cash_effect) || ''}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
-                        const isNegative = choice.cash_effect < 0;
-                        handleChoiceChange(index, 'cash_effect', isNegative ? -value : value);
-                      }}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-r-md text-sm focus:outline-none focus:ring-2 text-gray-700 bg-white ${
-                        choice.cash_effect < 0 
-                          ? 'focus:ring-red-500 border-r-red-300' 
-                          : choice.cash_effect > 0 
-                            ? 'focus:ring-green-500 border-r-green-300' 
-                            : 'focus:ring-blue-500'
-                      }`}
-                      placeholder="Amount"
-                      disabled={choice.cash_effect === 0}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {getEffectDescription(choice.cash_effect, 'cash')}
-                  </p>
-                </div>
-                
-                {/* Revenue Effect with better UX */}
-                <div className="mb-4">
-                  <label className="block text-gray-700 text-sm mb-1">
-                    Monthly Revenue Effect
-                  </label>
-                  <div className="flex items-center">
-                    <select
-                      value={choice.revenue_effect < 0 ? 'decrease' : choice.revenue_effect > 0 ? 'increase' : 'none'}
-                      onChange={(e) => {
-                        const action = e.target.value;
-                        const currentValue = Math.abs(choice.revenue_effect) || 0;
-                        let newValue = 0;
-                        
-                        if (action === 'increase') newValue = currentValue || 500;
-                        else if (action === 'decrease') newValue = -(currentValue || 500);
-                        
-                        handleChoiceChange(index, 'revenue_effect', newValue);
-                      }}
-                      className="py-2 px-3 border border-gray-300 rounded-l-md text-sm text-gray-700 bg-white"
-                    >
-                      <option value="none">No Change</option>
-                      <option value="increase">Increase Revenue</option>
-                      <option value="decrease">Decrease Revenue</option>
-                    </select>
-                    
-                    <span className="bg-gray-200 px-3 py-2 text-gray-700">$</span>
-                    
-                    <input
-                      type="number"
-                      value={Math.abs(choice.revenue_effect) || ''}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
-                        const isNegative = choice.revenue_effect < 0;
-                        handleChoiceChange(index, 'revenue_effect', isNegative ? -value : value);
-                      }}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-r-md text-sm focus:outline-none focus:ring-2 text-gray-700 bg-white ${
-                        choice.revenue_effect < 0 
-                          ? 'focus:ring-red-500 border-r-red-300' 
-                          : choice.revenue_effect > 0 
-                            ? 'focus:ring-green-500 border-r-green-300' 
-                            : 'focus:ring-blue-500'
-                      }`}
-                      placeholder="Amount"
-                      disabled={choice.revenue_effect === 0}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {getEffectDescription(choice.revenue_effect, 'revenue')}
-                    {choice.revenue_effect !== 0 && choice.duration > 1 ? ` for ${choice.duration} months` : ''}
-                  </p>
-                </div>
-                
-                {/* Expenses Effect with better UX */}
-                <div className="mb-2">
-                  <label className="block text-gray-700 text-sm mb-1">
-                    Monthly Expenses Effect
-                  </label>
-                  <div className="flex items-center">
-                    <select
-                      value={choice.expenses_effect < 0 ? 'decrease' : choice.expenses_effect > 0 ? 'increase' : 'none'}
-                      onChange={(e) => {
-                        const action = e.target.value;
-                        const currentValue = Math.abs(choice.expenses_effect) || 0;
-                        let newValue = 0;
-                        
-                        if (action === 'increase') newValue = currentValue || 500;
-                        else if (action === 'decrease') newValue = -(currentValue || 500);
-                        
-                        handleChoiceChange(index, 'expenses_effect', newValue);
-                      }}
-                      className="py-2 px-3 border border-gray-300 rounded-l-md text-sm text-gray-700 bg-white"
-                    >
-                      <option value="none">No Change</option>
-                      <option value="increase">Increase Expenses</option>
-                      <option value="decrease">Decrease Expenses</option>
-                    </select>
-                    
-                    <span className="bg-gray-200 px-3 py-2 text-gray-700">$</span>
-                    
-                    <input
-                      type="number"
-                      value={Math.abs(choice.expenses_effect) || ''}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
-                        const isNegative = choice.expenses_effect < 0;
-                        handleChoiceChange(index, 'expenses_effect', isNegative ? -value : value);
-                      }}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-r-md text-sm focus:outline-none focus:ring-2 text-gray-700 bg-white ${
-                        choice.expenses_effect < 0 
-                          ? 'focus:ring-green-500 border-r-green-300' // Note: Decreased expenses is positive
-                          : choice.expenses_effect > 0 
-                            ? 'focus:ring-red-500 border-r-red-300' // Increased expenses is negative
-                            : 'focus:ring-blue-500'
-                      }`}
-                      placeholder="Amount"
-                      disabled={choice.expenses_effect === 0}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {getEffectDescription(choice.expenses_effect, 'expenses')}
-                    {choice.expenses_effect !== 0 && choice.duration > 1 ? ` for ${choice.duration} months` : ''}
-                  </p>
-                </div>
-                
-                <p className="text-xs bg-blue-50 p-2 rounded text-blue-700 mt-3">
-                  <strong>Note:</strong> The duration applies to revenue and expenses effects. 
-                  A duration of 1 means the effect only happens once, while 2+ means it continues for multiple months.
-                </p>
-              </div>
-              
-              <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
-                <div className="flex items-center mb-2">
-                  <h5 className="text-sm font-medium text-gray-700">Delayed Cash Payment</h5>
-                  <span className="ml-2 text-xs bg-yellow-200 px-2 py-0.5 rounded-full text-yellow-800">Optional</span>
-                </div>
-                
-                <p className="text-xs text-yellow-800 mb-3">
-                  Use this for effects like B2B payments that come in after a delay.
-                  Currently only supports delayed cash payments.
-                </p>
-                
+              {/* Cash Effect */}
+              <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <h5 className="font-medium text-gray-700 mb-2 text-sm">Cash Effect</h5>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-700 text-sm mb-1">
-                      Payment Amount
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Minimum Value
                     </label>
-                    <div className="flex">
-                      <span className="bg-gray-200 px-3 py-2 text-gray-700 rounded-l-md">$</span>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
                       <input
                         type="number"
-                        value={choice.delayed_cash_value || ''}
-                        onChange={(e) => handleChoiceChange(
-                          index, 
-                          'delayed_cash_value', 
-                          e.target.value ? parseInt(e.target.value) : null
-                        )}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-r-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-                        placeholder="Amount (e.g. 12000)"
+                        value={choice.cash_min}
+                        onChange={(e) => handleChoiceChange(index, 'cash_min', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
                       />
                     </div>
                   </div>
-                  
                   <div>
-                    <label className="block text-gray-700 text-sm mb-1">
-                      Months Until Payment
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Maximum Value
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={choice.cash_max}
+                        onChange={(e) => handleChoiceChange(index, 'cash_max', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Immediate cash effect (negative = cost, positive = gain)
+                </p>
+              </div>
+              
+              {/* Revenue Effect */}
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <h5 className="font-medium text-gray-700 mb-2 text-sm">Revenue Effect (per month)</h5>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Minimum Value
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={choice.revenue_min}
+                        onChange={(e) => handleChoiceChange(index, 'revenue_min', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Maximum Value
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={choice.revenue_max}
+                        onChange={(e) => handleChoiceChange(index, 'revenue_max', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Monthly revenue change (negative = decrease, positive = increase)
+                </p>
+              </div>
+              
+              {/* Expenses Effect */}
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <h5 className="font-medium text-gray-700 mb-2 text-sm">Expenses Effect (per month)</h5>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Minimum Value
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={choice.expenses_min}
+                        onChange={(e) => handleChoiceChange(index, 'expenses_min', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-700"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Maximum Value
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={choice.expenses_max}
+                        onChange={(e) => handleChoiceChange(index, 'expenses_max', parseInt(e.target.value))}
+                        className="w-full pl-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Monthly expenses change (negative = decrease, positive = increase)
+                </p>
+              </div>
+              
+              {/* Customer Rating Effect */}
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <h5 className="font-medium text-gray-700 mb-2 text-sm">Customer Rating Effect</h5>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Minimum Rating Change
                     </label>
                     <input
                       type="number"
-                      value={choice.delayed_cash_months || ''}
-                      onChange={(e) => handleChoiceChange(
-                        index, 
-                        'delayed_cash_months', 
-                        e.target.value ? parseInt(e.target.value) : null
-                      )}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
-                      min="1"
-                      placeholder="Months (e.g. 3)"
+                      value={choice.customer_rating_min}
+                      onChange={(e) => handleChoiceChange(index, 'customer_rating_min', parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-700"
+                      step="0.1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 text-xs mb-1">
+                      Maximum Rating Change
+                    </label>
+                    <input
+                      type="number"
+                      value={choice.customer_rating_max}
+                      onChange={(e) => handleChoiceChange(index, 'customer_rating_max', parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-700"
+                      step="0.1"
                     />
                   </div>
                 </div>
-                
-                {choice.delayed_cash_value && choice.delayed_cash_months && (
-                  <p className="text-sm text-green-600 mt-2">
-                    ✓ Will receive ${choice.delayed_cash_value.toLocaleString()} after {choice.delayed_cash_months} month{choice.delayed_cash_months !== 1 ? 's' : ''}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Customer rating change (-5 to +5 stars)
+                </p>
               </div>
             </div>
           ))}
@@ -548,7 +601,7 @@ export default function CardForm({ card, industries }: { card: any, industries: 
       <div className="flex justify-between">
         <button
           type="button"
-          onClick={() => router.push('/admin')}
+          onClick={() => router.push('/admin/cards')}
           className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 bg-white"
         >
           Cancel
