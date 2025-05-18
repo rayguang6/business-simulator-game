@@ -1,4 +1,4 @@
-// components/game/IndustryGame.jsx
+// components/game/IndustryGame.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,12 +34,10 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const [effects, setEffects] = useState<any>(null);
   const [cardsThisMonth, setCardsThisMonth] = useState(0);
   const [isProcessingDecision, setIsProcessingDecision] = useState(false);
-  const [cards, setCards] = useState<Card[]>(initialCards);
+  const [cards, setCards] = useState<Card[]>([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-
-  // Debug: component mount and props
-  console.log('IndustryGame mounted', { initialCards, industryData });
+  const [needNewCard, setNeedNewCard] = useState(false);
 
   // Card type probabilities (can be tweaked or moved to DB/admin later)
   const CARD_TYPE_PROBABILITIES = {
@@ -49,35 +47,55 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     happy: 0.05
   };
 
+  // Debug: component mount and props
+  useEffect(() => {
+    console.log('IndustryGame mounted', { 
+      initialCardsCount: initialCards?.length, 
+      industryData, 
+      industryId 
+    });
+  }, [initialCards, industryData, industryId]);
+
   // Initialize game state in Zustand
   useEffect(() => {
     if (!industryData) return;
+    
     setGameState({
       cash: industryData.startingCash,
       revenue: industryData.startingRevenue,
       expenses: industryData.startingExpenses,
       month: 4, // Start in April
       month_end: false,
-      customer_rating: 3, // Default starting rating, or use industryData.startingCustomerRating if available
-      industry_id: industryData.id,
+      customer_rating: 3,
+      industry_id: industryId, // Use the passed industryId instead of industryData.id
       temporary_effects: [],
       history: [],
       game_over: false,
       win_condition_met: false,
       active_cards: []
     });
+    
     setCurrentDate('April 2025');
     setCardsThisMonth(0);
-  }, [industryData, setGameState]);
+  }, [industryData, setGameState, industryId]);
 
   // Set cards for the selected industry on new game
   useEffect(() => {
-    if (industryData && initialCards) {
-      const filtered = initialCards.filter(card => card.industry_id === industryData.id);
-      console.log('Setting cards for industry', industryData.id, 'Count:', filtered.length);
+    if (!initialCards || !industryId) return;
+    
+    // IMPORTANT FIX: Use the industryId prop directly
+    const filtered = initialCards.filter(card => card.industry_id === industryId);
+    console.log('Setting cards for industry', industryId, 'Count:', filtered.length);
+    
+    if (filtered.length === 0) {
+      console.warn(`No cards found for industry ID "${industryId}"`);
+      setCards(initialCards); // Fallback to all cards if none match
+    } else {
       setCards(filtered);
     }
-  }, [industryData, initialCards]);
+    
+    setNeedNewCard(true);
+  }, [industryId, initialCards]);
 
   // Helper to pick a type based on probability
   function pickTypeByProbability(probabilities: Record<string, number>): string {
@@ -91,37 +109,72 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     return Object.keys(probabilities)[0];
   }
 
-  // Show a new card when game state changes
+  // Show a new card when needed
   useEffect(() => {
-    if (gameState && !showMonthSummary && !isGameOver && !isGameWon && !isProcessingDecision && cards.length > 0) {
-      // Filter cards by requirements
-      const filteredCards = cards.filter(card => {
-        // Stage month (null means always available)
-        if (card.stage_month !== null && card.stage_month > gameState.month) return false;
-        // Min cash
-        if (card.min_cash !== null && gameState.cash < card.min_cash) return false;
-        // Max cash
-        if (card.max_cash !== null && gameState.cash > card.max_cash) return false;
-        return true;
-      });
-      // Debug logs
-      console.log('Total cards for industry:', cards.length);
-      console.log('Cards after filtering:', filteredCards.length);
-      // Pick a type by probability
-      const type = pickTypeByProbability(CARD_TYPE_PROBABILITIES);
-      console.log('Picked type:', type);
-      const typeFiltered = filteredCards.filter(card => card.type === type);
-      console.log('Cards of picked type:', typeFiltered.length);
-      let available = typeFiltered.length > 0 ? typeFiltered : filteredCards;
-      if (available.length > 0) {
-        const randomIndex = Math.floor(Math.random() * available.length);
-        setCurrentCard(available[randomIndex]);
-      } else {
-        setCurrentCard(null); // No available card
+    // Only select a new card if one is needed and game conditions allow
+    if (!needNewCard || currentCard || !gameState || showMonthSummary || isGameOver || isGameWon || isProcessingDecision) {
+      return;
+    }
+    
+    // Check if we have cards available
+    if (cards.length === 0) {
+      console.warn("No cards available to display");
+      setNeedNewCard(false);
+      return;
+    }
+    
+    console.log('Selecting a new card...');
+    
+    // Filter cards by requirements
+    const filteredCards = cards.filter(card => {
+      // Stage month (null means always available)
+      if (card.stage_month !== null && card.stage_month > gameState.month) return false;
+      // Min cash
+      if (card.min_cash !== null && gameState.cash < card.min_cash) return false;
+      // Max cash
+      if (card.max_cash !== null && gameState.cash > card.max_cash) return false;
+      return true;
+    });
+    
+    console.log('Total cards for industry:', cards.length);
+    console.log('Cards after filtering:', filteredCards.length);
+    
+    // If no cards meet criteria, use any available card
+    if (filteredCards.length === 0) {
+      console.log('No cards meet filtering criteria, using any available card');
+      const randomIndex = Math.floor(Math.random() * cards.length);
+      setCurrentCard(cards[randomIndex]);
+      setNeedNewCard(false);
+      return;
+    }
+    
+    // Pick a type by probability
+    const type = pickTypeByProbability(CARD_TYPE_PROBABILITIES);
+    console.log('Picked type:', type);
+    
+    const typeFiltered = filteredCards.filter(card => card.type === type);
+    console.log('Cards of picked type:', typeFiltered.length);
+    
+    // Use type-filtered cards or fallback to all filtered cards
+    let available = typeFiltered.length > 0 ? typeFiltered : filteredCards;
+    
+    if (available.length > 0) {
+      const randomIndex = Math.floor(Math.random() * available.length);
+      const selectedCard = available[randomIndex];
+      console.log('Selected card:', selectedCard.id, selectedCard.title);
+      setCurrentCard(selectedCard);
+    } else {
+      // Should never get here, but just in case
+      console.error('No available cards after filtering');
+      if (cards.length > 0) {
+        const randomIndex = Math.floor(Math.random() * cards.length);
+        setCurrentCard(cards[randomIndex]);
       }
     }
-  }, [gameState, showMonthSummary, cards, isGameOver, isGameWon, isProcessingDecision]);
-  
+    
+    setNeedNewCard(false);
+  }, [needNewCard, currentCard, gameState, showMonthSummary, isGameOver, isGameWon, isProcessingDecision, cards]);
+
   // Process month end
   const processMonthEnd = (state: GameState) => {
     // Calculate monthly profit
@@ -133,10 +186,10 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     const newCash = state.cash + monthlyProfit;
     updateCash(monthlyProfit);
     
-      // Check for game over
-  if (newCash < 0) {
+    // Check for game over
+    if (newCash < 0) {
       setIsGameOver(true);
-  } else if (newCash >= 100000) {
+    } else if (newCash >= 100000) {
       setIsGameWon(true);
     }
 
@@ -146,46 +199,75 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       revenue: monthlyRevenue,
       expenses: monthlyExpenses,
       profit: monthlyProfit,
-      cash: state.cash + monthlyProfit
+      cash: newCash
     });
+    
     setShowMonthSummary(true);
     return state;
   };
 
   // Handle player decision
   const makeDecision = (choice: CardChoice) => {
-    if (!gameState || isProcessingDecision) return;
+    if (!gameState || isProcessingDecision || !currentCard) return;
+    
     setIsProcessingDecision(true);
+    
     // Use the effect values as-is (already scaled and rounded by backend)
     setEffects({
       cash: (choice.cash_min ?? 0),
       revenue: (choice.revenue_min ?? 0),
       expenses: (choice.expenses_min ?? 0)
     });
+    
     setTimeout(() => {
+      // Apply effects to game state
       updateCash(choice.cash_min ?? 0);
       updateRevenue(choice.revenue_min ?? 0);
       updateExpenses(choice.expenses_min ?? 0);
+      
+      // Store current card ID before removing
+      const currentCardId = currentCard.id;
+      
+      // Remove the current card from the available cards
+      setCards(prevCards => {
+        return prevCards.filter(card => card.id !== currentCardId);
+      });
+      
+      // Clear current card to allow new card selection
+      setCurrentCard(null);
+      
       // Update month counter - every 2 cards = 1 month
       const newCardsThisMonth = cardsThisMonth + 1;
       setCardsThisMonth(newCardsThisMonth);
+      
       if (newCardsThisMonth >= 2) {
+        // Month end processing
         setCardsThisMonth(0);
         nextMonth();
+        
         setCurrentDate((prev) => {
           const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'];
+            
           if (!gameState) return prev;
+          
           let newMonth = gameState.month + 1;
           let newYear = 2025; // Static for now
-        if (newMonth > 12) {
-          newMonth = 1;
-          newYear++;
-        }
+          
+          if (newMonth > 12) {
+            newMonth = 1;
+            newYear++;
+          }
+          
           return `${monthNames[newMonth - 1]} ${newYear}`;
         });
+        
         processMonthEnd({ ...gameState, month: gameState.month + 1 } as GameState);
+      } else {
+        // If not month end, request a new card
+        setNeedNewCard(true);
       }
+      
       setTimeout(() => {
         setEffects(null);
         setIsProcessingDecision(false);
@@ -196,6 +278,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   // Close month summary and continue
   const closeMonthSummary = () => {
     setShowMonthSummary(false);
+    setNeedNewCard(true); // Request a new card when summary is closed
   };
 
   // Restart game
@@ -207,10 +290,12 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const handleBack = () => {
     setShowConfirm(true);
   };
+  
   const confirmBack = () => {
     setShowConfirm(false);
     router.push('/');
   };
+  
   const cancelBack = () => {
     setShowConfirm(false);
   };
@@ -218,6 +303,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   // Start game from welcome screen
   const startGame = () => {
     setShowWelcome(false);
+    setNeedNewCard(true); // Request first card when game starts
   };
 
   const getProfit = () => {
@@ -465,12 +551,12 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                 >
                   <div className="bg-slate-700 rounded-xl shadow-lg p-6 border-2 border-green-500/50">
                     <h2 className="text-3xl font-bold text-center mb-2 text-green-400">You Win!</h2>
-                    <p className="text-center text-slate-300 mb-6">Your coffee shop has reached $100,000 in cash!</p>
+                    <p className="text-center text-slate-300 mb-6">Your {industryData.name} has reached $100,000 in cash!</p>
 
                     <div className="bg-slate-800 p-4 rounded-lg mb-6 border border-slate-600">
                       <div className="text-center">
                         <div className="text-sm text-slate-400 mb-1">You succeeded in</div>
-                        <div className="text-3xl font-bold text-white">{gameState.month} months</div>
+                        <div className="text-3xl font-bold text-white">{gameState.month - 4} months</div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4 mt-6">
