@@ -95,23 +95,29 @@ interface CardChoice {
   //   choices: CardChoiceFormData[];
   // }
   
-  // interface GameState {
-  //   cash: number;
-  //   revenue: number;
-  //   expenses: number;
-  //   month: number;
-  //   month_end: boolean;
-  //   temporary_effects: {
-  //     name: string;
-  //     revenue: number;
-  //     expenses: number;
-  //     monthsRemaining: number;
-  //   }[];
-  //   delayed_effects: {
-  //     name: string;
-  //     revenue: number;
-  //     expenses: number;
-  //     monthsRemaining: number;
-  //   }[];
-  //   customer_rating: number; // Added based on your schema changes
-  // }
+  interface GameState {
+    cash: number;
+    revenue: number;
+    expenses: number;
+    month: number;
+    month_end: boolean;
+    customer_rating: number;
+    industry_id: string;
+    temporary_effects: {
+      name: string;
+      revenue?: number;
+      expenses?: number;
+      cash?: number;
+      customer_rating?: number;
+      monthsRemaining: number;
+    }[];
+    history: Array<{
+      month: number;
+      card_id: string;
+      choice_label: string;
+      effects: Record<string, any>;
+    }>;
+    game_over: boolean;
+    win_condition_met: boolean;
+    active_cards: string[]; // or Card[] if you want to store full card objects
+  }

@@ -35,6 +35,8 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const [cardsThisMonth, setCardsThisMonth] = useState(0);
   const [isProcessingDecision, setIsProcessingDecision] = useState(false);
   const [cards, setCards] = useState<Card[]>(initialCards);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Initialize game state in Zustand
   useEffect(() => {
@@ -45,8 +47,13 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       expenses: industryData.startingExpenses,
       month: 4, // Start in April
       month_end: false,
+      customer_rating: 3, // Default starting rating, or use industryData.startingCustomerRating if available
+      industry_id: industryData.id,
       temporary_effects: [],
-      delayed_effects: []
+      history: [],
+      game_over: false,
+      win_condition_met: false,
+      active_cards: []
     });
     setCurrentDate('April 2025');
     setCardsThisMonth(0);
@@ -96,14 +103,14 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     setIsProcessingDecision(true);
     // Use the effect values as-is (already scaled and rounded by backend)
     setEffects({
-      cash: choice.cash || 0,
-      revenue: choice.revenue || 0,
-      expenses: choice.expenses || 0
+      cash: (choice.cash_min ?? 0),
+      revenue: (choice.revenue_min ?? 0),
+      expenses: (choice.expenses_min ?? 0)
     });
     setTimeout(() => {
-      updateCash(choice.cash || 0);
-      updateRevenue(choice.revenue || 0);
-      updateExpenses(choice.expenses || 0);
+      updateCash(choice.cash_min ?? 0);
+      updateRevenue(choice.revenue_min ?? 0);
+      updateExpenses(choice.expenses_min ?? 0);
       // Update month counter - every 2 cards = 1 month
       const newCardsThisMonth = cardsThisMonth + 1;
       setCardsThisMonth(newCardsThisMonth);
@@ -141,9 +148,50 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     router.push('/');
   };
 
+  // Confirmation dialog for back button
+  const handleBack = () => {
+    setShowConfirm(true);
+  };
+  const confirmBack = () => {
+    setShowConfirm(false);
+    router.push('/');
+  };
+  const cancelBack = () => {
+    setShowConfirm(false);
+  };
+
+  // Start game from welcome screen
+  const startGame = () => {
+    setShowWelcome(false);
+  };
+
   const getProfit = () => {
     return gameState ? gameState.revenue - gameState.expenses : 0;
   };
+
+  if (showWelcome) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
+        <div className="bg-slate-800 rounded-xl shadow-lg p-8 max-w-md w-full border-2 border-blue-700/30">
+          <div className="flex flex-col items-center mb-4">
+            <span className="text-5xl mb-2">{industryData.icon}</span>
+            <h2 className="text-2xl font-bold mb-1">Welcome to {industryData.name}!</h2>
+            <p className="text-slate-300 text-center mb-2">{industryData.description}</p>
+          </div>
+          <div className="mb-4 text-center">
+            <p className="text-lg text-blue-300 font-semibold mb-1">How to Win</p>
+            <p className="text-slate-200">Grow your business and reach <span className="text-green-400 font-bold">$100,000</span> cash before going bankrupt.</p>
+          </div>
+          <button
+            onClick={startGame}
+            className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-lg transition-all duration-200 text-lg"
+          >
+            Start Game
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!industryData || !gameState) {
     return (
@@ -161,12 +209,30 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
           {/* Game Header with Company & Date */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-4 py-3 shadow-lg">
             <div className="flex justify-between items-center">
+              {/* Back Button */}
+              <button
+                onClick={handleBack}
+                className="mr-2 text-white hover:text-blue-200 focus:outline-none"
+                aria-label="Back to Home"
+              >
+                <span className="text-2xl">←</span>
+              </button>
+              {/* Industry Icon and Name */}
               <div className="flex items-center">
                 <span className="text-2xl mr-2">{industryData.icon}</span>
                 <h1 className="font-bold">{industryData.name}</h1>
               </div>
-              <div className="bg-blue-900/50 px-3 py-1 rounded-full text-sm">
+              {/* Date in Center */}
+              <div className="bg-blue-900/50 px-3 py-1 rounded-full text-sm mx-auto">
                 {currentDate}
+              </div>
+              {/* Customer Rating Stars at Right */}
+              <div className="flex items-center ml-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span key={i} className={i < Math.round(gameState.customer_rating) ? 'text-yellow-400 text-lg' : 'text-slate-600 text-lg'}>
+                    ★
+                  </span>
+                ))}
               </div>
             </div>
           </div>
@@ -186,7 +252,6 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   <div className="text-xl font-bold text-white mb-1">
                     ${gameState.cash.toLocaleString()}
                   </div>
-
                   {/* Cash Animation */}
                   <AnimatePresence>
                     {effects && effects.cash !== 0 && (
@@ -216,7 +281,6 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   <div className="text-xl font-bold text-white mb-1">
                     ${gameState.revenue.toLocaleString()}
                   </div>
-
                   {/* Revenue Animation */}
                   <AnimatePresence>
                     {effects && effects.revenue !== 0 && (
@@ -246,7 +310,6 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   <div className="text-xl font-bold text-white mb-1">
                     ${gameState.expenses.toLocaleString()}
                   </div>
-
                   {/* Expenses Animation */}
                   <AnimatePresence>
                     {effects && effects.expenses !== 0 && (
@@ -265,20 +328,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                 </div>
               </div>
             </div>
-
-            {/* Rest of the Dashboard */}
-            {/* ... (copy from your original component) */}
             
-            {/* Profit/Loss Indicator */}
-            <div className="mb-2">
-              <div className={`text-center py-1 px-2 rounded-md text-sm font-medium ${getProfit() >= 0 ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
-                {getProfit() >= 0 ? '🔼 PROFIT' : '🔽 LOSS'}:
-                <span className="font-bold ml-1">
-                  ${Math.abs(getProfit()).toLocaleString()}/month
-                </span>
-              </div>
-            </div>
-
             {/* Month Progress */}
             <div className="mb-3">
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -301,59 +351,26 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   <span className="text-xs bg-indigo-900/50 text-indigo-300 px-2 py-0.5 rounded-full">{gameState.temporary_effects.length}</span>
                 </div>
                 <div className="space-y-1">
-                  {gameState.temporary_effects.map((effect, index) => (
+                  {gameState.temporary_effects.map((effect: any, index: number) => (
                     <div
                       key={index}
                       className="text-xs bg-slate-700/50 px-3 py-1 rounded-md flex justify-between items-center border border-slate-600/50"
                     >
                       <span className="truncate text-slate-300">{effect.name.substring(0, 20)}...</span>
                       <span className="whitespace-nowrap">
-                        {effect.revenue !== 0 && (
-                          <span className={effect.revenue > 0 ? 'text-green-400' : 'text-red-400'}>
-                            {effect.revenue > 0 ? '+' : ''}${effect.revenue}
+                        {(effect.revenue ?? 0) !== 0 && (
+                          <span className={(effect.revenue ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}>
+                            {(effect.revenue ?? 0) > 0 ? '+' : ''}${effect.revenue ?? 0}
                           </span>
                         )}
-                        {effect.expenses !== 0 && (
-                          <span className={effect.expenses < 0 ? 'text-green-400' : 'text-red-400'}>
-                            {effect.expenses > 0 ? ' +' : ' '}${effect.expenses}
+                        {(effect.expenses ?? 0) !== 0 && (
+                          <span className={(effect.expenses ?? 0) < 0 ? 'text-green-400' : 'text-red-400'}>
+                            {(effect.expenses ?? 0) > 0 ? ' +' : ' '}${effect.expenses ?? 0}
                           </span>
                         )}
                         <span className="text-slate-400 ml-1">({effect.monthsRemaining}m)</span>
                       </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Delayed Effects */}
-            {gameState.delayed_effects && gameState.delayed_effects.length > 0 && (
-              <div className="mb-2">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-xs font-medium text-slate-400">Pending Effects:</p>
-                  <span className="text-xs bg-amber-900/50 text-amber-300 px-2 py-0.5 rounded-full">{gameState.delayed_effects.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {gameState.delayed_effects.map((effect, index) => (
-                      <div
-                        key={index}
-                        className="text-xs bg-amber-900/20 px-3 py-1 rounded-md flex justify-between items-center border border-amber-800/30"
-                      >
-                      <span className="truncate text-slate-300">{effect.name.substring(0, 15)}...</span>
-                        <span className="whitespace-nowrap text-amber-300">
-                        {effect.revenue !== 0 && (
-                          <span className={effect.revenue > 0 ? 'text-green-400' : 'text-red-400'}>
-                            {effect.revenue > 0 ? '+' : ''}${effect.revenue}
-                          </span>
-                        )}
-                        {effect.expenses !== 0 && (
-                          <span className={effect.expenses < 0 ? 'text-green-400' : 'text-red-400'}>
-                            {effect.expenses > 0 ? ' +' : ' '}${effect.expenses}
-                          </span>
-                        )}
-                        <span className="text-slate-400 ml-1">({effect.monthsRemaining}m)</span>
-                        </span>
-                      </div>
                   ))}
                 </div>
               </div>
@@ -464,6 +481,30 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50">
+          <div className="bg-slate-800 rounded-lg shadow-lg p-6 max-w-xs w-full border border-blue-700/40">
+            <h3 className="text-lg font-bold mb-2 text-white">Quit Game?</h3>
+            <p className="text-slate-300 mb-4">Are you sure you want to quit? Your progress will be lost.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelBack}
+                className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBack}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
