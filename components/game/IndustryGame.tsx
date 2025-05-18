@@ -38,6 +38,17 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const [showWelcome, setShowWelcome] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // Debug: component mount and props
+  console.log('IndustryGame mounted', { initialCards, industryData });
+
+  // Card type probabilities (can be tweaked or moved to DB/admin later)
+  const CARD_TYPE_PROBABILITIES = {
+    opportunity: 0.60,
+    problem: 0.20,
+    market: 0.15,
+    happy: 0.05
+  };
+
   // Initialize game state in Zustand
   useEffect(() => {
     if (!industryData) return;
@@ -59,11 +70,55 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     setCardsThisMonth(0);
   }, [industryData, setGameState]);
 
+  // Set cards for the selected industry on new game
+  useEffect(() => {
+    if (industryData && initialCards) {
+      const filtered = initialCards.filter(card => card.industry_id === industryData.id);
+      console.log('Setting cards for industry', industryData.id, 'Count:', filtered.length);
+      setCards(filtered);
+    }
+  }, [industryData, initialCards]);
+
+  // Helper to pick a type based on probability
+  function pickTypeByProbability(probabilities: Record<string, number>): string {
+    const rand = Math.random();
+    let sum = 0;
+    for (const [type, prob] of Object.entries(probabilities)) {
+      sum += prob;
+      if (rand < sum) return type;
+    }
+    // fallback
+    return Object.keys(probabilities)[0];
+  }
+
   // Show a new card when game state changes
   useEffect(() => {
     if (gameState && !showMonthSummary && !isGameOver && !isGameWon && !isProcessingDecision && cards.length > 0) {
-      const randomIndex = Math.floor(Math.random() * cards.length);
-      setCurrentCard(cards[randomIndex]);
+      // Filter cards by requirements
+      const filteredCards = cards.filter(card => {
+        // Stage month (null means always available)
+        if (card.stage_month !== null && card.stage_month > gameState.month) return false;
+        // Min cash
+        if (card.min_cash !== null && gameState.cash < card.min_cash) return false;
+        // Max cash
+        if (card.max_cash !== null && gameState.cash > card.max_cash) return false;
+        return true;
+      });
+      // Debug logs
+      console.log('Total cards for industry:', cards.length);
+      console.log('Cards after filtering:', filteredCards.length);
+      // Pick a type by probability
+      const type = pickTypeByProbability(CARD_TYPE_PROBABILITIES);
+      console.log('Picked type:', type);
+      const typeFiltered = filteredCards.filter(card => card.type === type);
+      console.log('Cards of picked type:', typeFiltered.length);
+      let available = typeFiltered.length > 0 ? typeFiltered : filteredCards;
+      if (available.length > 0) {
+        const randomIndex = Math.floor(Math.random() * available.length);
+        setCurrentCard(available[randomIndex]);
+      } else {
+        setCurrentCard(null); // No available card
+      }
     }
   }, [gameState, showMonthSummary, cards, isGameOver, isGameWon, isProcessingDecision]);
   

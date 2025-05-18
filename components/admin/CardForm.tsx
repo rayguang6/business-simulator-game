@@ -112,7 +112,7 @@ export default function CardForm({ card, industries }: CardFormProps) {
       } else if (field === 'description') {
         newChoices[index] = { ...newChoices[index], [field]: String(value) };
       } else {
-        newChoices[index] = { ...newChoices[index], [field]: value };
+      newChoices[index] = { ...newChoices[index], [field]: value };
       }
       return { ...prev, choices: newChoices };
     });
@@ -433,11 +433,11 @@ export default function CardForm({ card, industries }: CardFormProps) {
                   <label className="block text-gray-700 text-sm mb-1">Description</label>
                   <input
                     type="text"
-                    value={choice.description || ''}
-                    onChange={e => handleChoiceChange(index, 'description', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                  value={choice.description || ''}
+                  onChange={e => handleChoiceChange(index, 'description', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
                     placeholder="Describe this choice (optional)"
-                  />
+                />
                 </div>
               </div>
 
@@ -566,7 +566,7 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         +
                       </button>
-                    </div>
+                  </div>
                     <input
                       type="number"
                       value={Math.abs(ensureNumber(choice.revenue_min))}
@@ -601,7 +601,7 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         +
                       </button>
-                    </div>
+                </div>
                     <input
                       type="number"
                       value={Math.abs(ensureNumber(choice.revenue_max))}
@@ -613,7 +613,7 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       }}
                       className="ml-2 w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 text-center"
                     />
-                  </div>
+                </div>
                   <div className="ml-4 flex items-center">
                     <span className="text-xs text-gray-700 font-medium mr-2">Type:</span>
                     <div className="flex">
@@ -631,8 +631,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         %
                       </button>
+              </div>
                   </div>
-                </div>
                   <div className="ml-4 flex items-center">
                     <span className="text-xs text-gray-700 font-medium mr-2">Duration:</span>
                     <div className="flex items-center">
@@ -659,8 +659,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                           className="ml-2 w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 text-center"
                         />
                       )}
-                    </div>
                   </div>
+                </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   Enter the min/max monthly revenue effect. Use + or - buttons to make values positive or negative. Use $ for flat or % for percentage of current revenue. Set duration to ∞ for permanent effect.
@@ -675,8 +675,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                   <div className="flex items-center">
                     <span className="mr-2 text-sm font-medium text-gray-700">Min:</span>
                     <div className="flex">
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className={`px-3 py-1 rounded-l cursor-pointer ${ensureNumber(choice.expenses_min) < 0 ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                         onClick={() => {
                           handleChoiceChange(index, 'expenses_min', Math.abs(ensureNumber(choice.expenses_min)) * -1);
@@ -684,8 +684,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         -
                       </button>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className={`px-3 py-1 rounded-r cursor-pointer ${ensureNumber(choice.expenses_min) >= 0 ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                         onClick={() => {
                           handleChoiceChange(index, 'expenses_min', Math.abs(ensureNumber(choice.expenses_min)));
@@ -694,24 +694,24 @@ export default function CardForm({ card, industries }: CardFormProps) {
                         +
                       </button>
                     </div>
-                    <input
-                      type="number"
+                      <input
+                        type="number"
                       value={Math.abs(ensureNumber(choice.expenses_min))}
                       min={0}
-                      onChange={e => {
+                        onChange={e => {
                         const value = Math.max(Number(e.target.value.replace(/[^\d]/g, '')), 0);
                         const sign = ensureNumber(choice.expenses_min) < 0 ? -1 : 1;
                         handleChoiceChange(index, 'expenses_min', value * sign);
                       }}
                       className="ml-2 w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-700 text-center"
                     />
-                  </div>
+                    </div>
                   <span className="mx-2 text-gray-400">to</span>
                   <div className="flex items-center">
                     <span className="mr-2 text-sm font-medium text-gray-700">Max:</span>
                     <div className="flex">
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className={`px-3 py-1 rounded-l cursor-pointer ${ensureNumber(choice.expenses_max) < 0 ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                         onClick={() => {
                           handleChoiceChange(index, 'expenses_max', Math.abs(ensureNumber(choice.expenses_max)) * -1);
@@ -719,8 +719,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         -
                       </button>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className={`px-3 py-1 rounded-r cursor-pointer ${ensureNumber(choice.expenses_max) >= 0 ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}`}
                         onClick={() => {
                           handleChoiceChange(index, 'expenses_max', Math.abs(ensureNumber(choice.expenses_max)));
@@ -729,18 +729,18 @@ export default function CardForm({ card, industries }: CardFormProps) {
                         +
                       </button>
                     </div>
-                    <input
-                      type="number"
+                      <input
+                        type="number"
                       value={Math.abs(ensureNumber(choice.expenses_max))}
                       min={0}
-                      onChange={e => {
+                        onChange={e => {
                         const value = Math.max(Number(e.target.value.replace(/[^\d]/g, '')), 0);
                         const sign = ensureNumber(choice.expenses_max) < 0 ? -1 : 1;
                         handleChoiceChange(index, 'expenses_max', value * sign);
                       }}
                       className="ml-2 w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-700 text-center"
                     />
-                  </div>
+                    </div>
                   <div className="ml-4 flex items-center">
                     <span className="text-xs text-gray-700 font-medium mr-2">Type:</span>
                     <div className="flex">
@@ -758,8 +758,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                       >
                         %
                       </button>
-                    </div>
                   </div>
+                </div>
                   <div className="ml-4 flex items-center">
                     <span className="text-xs text-gray-700 font-medium mr-2">Duration:</span>
                     <div className="flex items-center">
@@ -786,9 +786,9 @@ export default function CardForm({ card, industries }: CardFormProps) {
                           className="ml-2 w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-700 text-center"
                         />
                       )}
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+        </div>
                 <p className="text-xs text-gray-500 mt-2">
                   Enter the min/max monthly expenses effect. Use + or - buttons to make values positive or negative. Use $ for flat or % for percentage of current expenses. Set duration to ∞ for permanent effect.
                 </p>
@@ -819,8 +819,8 @@ export default function CardForm({ card, industries }: CardFormProps) {
                         }}
                       >
                         +
-                      </button>
-                    </div>
+        </button>
+      </div>
                       <input
                         type="number"
                       value={Math.abs(ensureNumber(choice.customer_rating_min))}

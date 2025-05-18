@@ -73,7 +73,7 @@ export default function EditCardPage({ params }: { params: { id: string } }) {
       </div>
     );
   }
-
+  
   // For new cards
   if (id === 'new') {
     return (
@@ -83,12 +83,12 @@ export default function EditCardPage({ params }: { params: { id: string } }) {
       </div>
     );
   }
-
+  
   // For existing cards
   if (!card) {
     return notFound();
   }
-
+  
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Edit Card</h1>

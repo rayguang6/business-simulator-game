@@ -23,36 +23,36 @@ export async function GET(
     return NextResponse.json({ error: cardError.message }, { status: 500 });
   }
   
-  // Get the choices
-  const { data: choices, error: choicesError } = await supabase
-    .from('card_choices')
-    .select('*')
-    .eq('card_id', id);
+// Get the choices
+const { data: choices, error: choicesError } = await supabase
+.from('card_choices')
+.select('*')
+.eq('card_id', id);
 
-  if (choicesError) {
-    return NextResponse.json({ error: choicesError.message }, { status: 500 });
-  }
+if (choicesError) {
+return NextResponse.json({ error: choicesError.message }, { status: 500 });
+}
 
-  return NextResponse.json({ ...card, choices });
+return NextResponse.json({ ...card, choices });
 }
 
 // DELETE a card and its choices
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+request: NextRequest,
+{ params }: { params: { id: string } }
 ) {
-  const supabase = createServerSupabaseClient();
-  const { id } = params;
+const supabase = createServerSupabaseClient();
+const { id } = params;
 
-  // Delete the card (choices will cascade delete)
-  const { error } = await supabase
-    .from('cards')
-    .delete()
-    .eq('id', id);
+// Delete the card (choices will cascade delete)
+const { error } = await supabase
+.from('cards')
+.delete()
+.eq('id', id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+if (error) {
+return NextResponse.json({ error: error.message }, { status: 500 });
+}
 
-  return NextResponse.json({ success: true });
+return NextResponse.json({ success: true });
 }
