@@ -11,8 +11,6 @@ export default async function IndustryPage({ params }: { params: { industry: str
     getCardsByIndustry(industry),
     getIndustry(industry)
   ]);
-
-  console.log(cards);
   
   if (!industryData || !industryData.isAvailable) {
     return redirect('/');

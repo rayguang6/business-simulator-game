@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building, CreditCard, Home, Settings, Users } from 'lucide-react';
+import { Building, CreditCard, Home } from 'lucide-react';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -11,7 +11,6 @@ export default function AdminSidebar() {
     { name: 'Dashboard', path: '/admin', icon: <Home size={20} /> },
     { name: 'Industries', path: '/admin/industries', icon: <Building size={20} /> },
     { name: 'Cards', path: '/admin/cards', icon: <CreditCard size={20} /> },
-    { name: 'Settings', path: '/admin/settings', icon: <Settings size={20} /> },
   ];
 
   return (
@@ -28,7 +27,7 @@ export default function AdminSidebar() {
               <Link
                 href={item.path}
                 className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                  pathname === item.path || pathname.startsWith(item.path + '/')
+                  pathname === item.path 
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:bg-gray-800'
                 }`}

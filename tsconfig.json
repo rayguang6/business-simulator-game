@@ -22,6 +22,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/layout.tsx", "lib/game-data/industries.tss,lib/game-data/cards.tss", "components/game/MonthSummary.js", "components/game/Dashboard.js", "components/game/Card.js", "app/page.tsx", "app/[industry]/page.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/layout.tsx", "lib/game-data/industries.tss,lib/game-data/cards.tss", "components/game/MonthSummary.js", "components/game/Dashboard.js", "components/game/Card.js", "components/page.tsx", "app/[industry]/page.ts"],
   "exclude": ["node_modules"]
 }

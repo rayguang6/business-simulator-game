@@ -8,7 +8,7 @@ import { useGameStore } from '@/lib/store';
 export default function IndustrySelector({ industries }: { industries: Industry[] }) {
   const router = useRouter();
   const setSelectedIndustry = useGameStore((state) => state.setSelectedIndustry);
-
+  
   const startGame = (industry: Industry) => {
     if (industry.isAvailable) {
       setSelectedIndustry(industry);

@@ -92,6 +92,7 @@ export default function IndustryList({ initialIndustries }: IndustryListProps) {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Icon</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">ID</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Description</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Starting Cash</th>
@@ -103,6 +104,7 @@ export default function IndustryList({ initialIndustries }: IndustryListProps) {
             {industries.map((industry) => (
               <tr key={industry.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-2xl">{industry.icon}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs">{industry.id}</td>
                 <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{industry.name}</td>
                 <td className="px-6 py-4 text-gray-600 max-w-xs truncate">{industry.description}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-600">${industry.startingCash.toLocaleString()}</td>
@@ -121,23 +123,31 @@ export default function IndustryList({ initialIndustries }: IndustryListProps) {
                   <Link 
                     href={`/admin/industries/${industry.id}`}
                     className="text-indigo-600 hover:text-indigo-900"
+                    title="Edit Industry"
                   >
                     <Edit size={18} />
                   </Link>
                   <button 
                     onClick={() => toggleAvailability(industry)}
-                    className={`${
+                    className={`flex items-center space-x-1 px-2 py-1 rounded cursor-pointer relative transition-colors duration-150 ${
                       industry.isAvailable 
-                        ? 'text-red-500 hover:text-red-700' 
-                        : 'text-green-500 hover:text-green-700'
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
+                        : 'bg-green-100 text-green-800 hover:bg-green-200'
                     }`}
-                    title={industry.isAvailable ? 'Mark as Coming Soon' : 'Mark as Available'}
+                    title={industry.isAvailable ? 'Mark as Coming Soon' : 'Make Available'}
                   >
-                    {industry.isAvailable ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                    {industry.isAvailable ? <XCircle size={16} /> : <CheckCircle size={16} />}
+                    <span
+                      className="text-xs ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute left-full top-1/2 -translate-y-1/2 whitespace-nowrap bg-white border border-gray-300 rounded px-2 py-1 shadow z-10 pointer-events-none"
+                      style={{ minWidth: '120px' }}
+                    >
+                      {industry.isAvailable ? 'Mark as Coming Soon' : 'Make Available'}
+                    </span>
                   </button>
                   <button 
                     onClick={() => confirmDelete(industry)}
                     className="text-red-600 hover:text-red-900"
+                    title="Delete Industry"
                   >
                     <Trash size={18} />
                   </button>

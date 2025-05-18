@@ -4,38 +4,24 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Edit, Trash, Eye, Copy, Download, Upload } from 'lucide-react';
+import { getCardTypeStyle } from '@/lib/utls';
+import { CardTypeEnum } from '@/lib/constants';
 
 // Define a type for the card data returned from the API
-interface CardListItem {
-  id: string;
-  industry_id: string;
-  type: string;
-  title: string;
-  description: string | null;
-  stage_month: number | null;
-  min_cash: number | null;
-  max_cash: number | null;
-  probability: number | null;
-  industries: {
-    name: string;
-  };
-}
-
 interface CardListProps {
-  initialCards: CardListItem[];
+  initialCards: Card[];
   industries: Industry[];
 }
 
 export default function CardList({ initialCards, industries }: CardListProps) {
-  const [cards, setCards] = useState<CardListItem[]>(initialCards);
-  const [cardToDelete, setCardToDelete] = useState<CardListItem | null>(null);
+  const [cards, setCards] = useState<Card[]>(initialCards);
+  const [cardToDelete, setCardToDelete] = useState<Card | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterIndustry, setFilterIndustry] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('');
   
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter cards based on selected filters
   const filteredCards = cards.filter(card => {
@@ -45,7 +31,7 @@ export default function CardList({ initialCards, industries }: CardListProps) {
   });
   
   // Delete card
-  const confirmDelete = (card: CardListItem) => {
+  const confirmDelete = (card: Card) => {
     setCardToDelete(card);
   };
   
@@ -82,110 +68,6 @@ export default function CardList({ initialCards, industries }: CardListProps) {
     }
   };
 
-  // Clone card
-  const handleClone = async (card: CardListItem) => {
-    try {
-      const response = await fetch(`/api/admin/cards/${card.id}/clone`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to clone card');
-      }
-      
-      // Refresh the page to show the new card
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    }
-  };
-
-  // Export all cards to JSON
-  const handleExport = () => {
-    // Format the data for export (exclude non-essential fields)
-    const exportData = cards.map(card => ({
-      id: card.id,
-      industry_id: card.industry_id,
-      type: card.type,
-      title: card.title,
-      description: card.description,
-      stage_month: card.stage_month,
-      min_cash: card.min_cash,
-      max_cash: card.max_cash,
-      probability: card.probability
-    }));
-    
-    // Create a JSON blob and download it
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'business-tycoon-cards.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Import cards from JSON
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const cardsData = JSON.parse(event.target?.result as string);
-          
-          // Validate the data structure
-          if (!Array.isArray(cardsData)) {
-            throw new Error('Invalid data format. Expected an array of cards.');
-          }
-          
-          // Send to API for processing
-          const response = await fetch('/api/admin/cards/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cards: cardsData })
-          });
-          
-          if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.error || 'Failed to import cards');
-          }
-          
-          // Refresh the page
-          router.refresh();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'An error occurred while parsing the file');
-        }
-      };
-      reader.readAsText(file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while reading the file');
-    }
-    
-    // Reset the file input
-    e.target.value = '';
-  };
-
-  // Get card type style
-  const getCardTypeStyle = (type: string) => {
-    switch (type) {
-      case 'Opportunity':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'Problem':
-        return 'bg-red-100 text-red-800';
-      case 'Market':
-        return 'bg-blue-100 text-blue-800';
-      case 'Happy':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-  
   return (
     <>
       {error && (
@@ -196,68 +78,58 @@ export default function CardList({ initialCards, industries }: CardListProps) {
       
       {/* Filters and Buttons */}
       <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-800">Filters</h3>
-          <div className="flex space-x-2">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2 md:gap-0">
+          <h3 className="text-lg font-medium text-gray-800 mb-2 md:mb-0">Filters</h3>
+          {(filterIndustry || filterType) && (
             <button
-              onClick={handleExport}
-              className="flex items-center px-3 py-1.5 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
-              title="Export Cards"
+              onClick={() => { setFilterIndustry(''); setFilterType(''); }}
+              className="ml-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Clear Filters"
             >
-              <Download size={16} className="mr-1" /> Export
+              Clear Filters
             </button>
-            
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImport}
-              className="hidden"
-              accept=".json"
-            />
-            
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center px-3 py-1.5 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
-              title="Import Cards"
-            >
-              <Upload size={16} className="mr-1" /> Import
-            </button>
-          </div>
+          )}
         </div>
-        
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="industry-filter">
               Filter by Industry
             </label>
             <select
+              id="industry-filter"
               value={filterIndustry}
               onChange={(e) => setFilterIndustry(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              aria-label="Filter by Industry"
             >
               <option value="">All Industries</option>
-              {industries.map(industry => (
-                <option key={industry.id} value={industry.id}>
-                  {industry.name}
-                </option>
-              ))}
+              {industries
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(industry => (
+                  <option key={industry.id} value={industry.id}>
+                    {industry.icon ? `${industry.icon} ` : ''}{industry.name}
+                  </option>
+                ))}
             </select>
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="type-filter">
               Filter by Type
             </label>
             <select
+              id="type-filter"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              aria-label="Filter by Type"
             >
               <option value="">All Types</option>
-              <option value="Opportunity">Opportunity</option>
-              <option value="Problem">Problem</option>
-              <option value="Market">Market</option>
-              <option value="Happy">Happy</option>
+              {Object.values(CardTypeEnum).map(type => (
+                <option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -270,66 +142,51 @@ export default function CardList({ initialCards, industries }: CardListProps) {
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Description</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Industry</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Probability</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Cash Range</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredCards.map((card) => (
-              <tr key={card.id} className="hover:bg-gray-50">
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 text-xs rounded-full ${getCardTypeStyle(card.type)}`}>
-                    {card.type}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-gray-700 max-w-xs truncate font-medium">
-                  {card.title}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-gray-600">
-                  {card.industries.name}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-gray-600">
-                  {card.probability ? `${card.probability}%` : 'Default'}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-gray-600">
-                  {card.min_cash !== null && card.max_cash !== null
-                    ? `$${card.min_cash.toLocaleString()} - $${card.max_cash.toLocaleString()}`
-                    : 'N/A'}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm flex space-x-3">
-                  <Link 
-                    href={`/admin/cards/${card.id}/view`}
-                    className="text-blue-600 hover:text-blue-900"
-                    title="View"
-                  >
-                    <Eye size={18} />
-                  </Link>
-                  <Link 
-                    href={`/admin/cards/${card.id}`}
-                    className="text-indigo-600 hover:text-indigo-900"
-                    title="Edit"
-                  >
-                    <Edit size={18} />
-                  </Link>
-                  <button
-                    onClick={() => handleClone(card)}
-                    className="text-purple-600 hover:text-purple-900"
-                    title="Clone"
-                  >
-                    <Copy size={18} />
-                  </button>
-                  <button 
-                    onClick={() => confirmDelete(card)}
-                    className="text-red-600 hover:text-red-900"
-                    title="Delete"
-                  >
-                    <Trash size={18} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filteredCards.map((card) => {
+              const industry = industries.find(i => i.id === card.industry_id);
+              return (
+                <tr key={card.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs rounded-full ${getCardTypeStyle(card.type)}`}>
+                      {card.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-gray-700 max-w-xs truncate font-medium">
+                    {card.title}
+                  </td>
+                  <td className="px-4 py-4 text-gray-600 max-w-xs truncate">
+                    {card.description && card.description.length > 60
+                      ? card.description.slice(0, 60) + '...'
+                      : card.description}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-gray-600">
+                    {industry ? (industry.icon ? `${industry.icon} ` : '') + industry.name : card.industry_id}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm flex space-x-3">
+                    <Link 
+                      href={`/admin/cards/${card.id}`}
+                      className="text-indigo-600 hover:text-indigo-900"
+                      title="Edit"
+                    >
+                      <Edit size={18} />
+                    </Link>
+                    <button 
+                      onClick={() => confirmDelete(card)}
+                      className="text-red-600 hover:text-red-900"
+                      title="Delete"
+                    >
+                      <Trash size={18} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

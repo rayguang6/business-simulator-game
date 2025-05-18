@@ -59,7 +59,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       setCurrentCard(cards[randomIndex]);
     }
   }, [gameState, showMonthSummary, cards, isGameOver, isGameWon, isProcessingDecision]);
-
+  
   // Process month end
   const processMonthEnd = (state: GameState) => {
     // Calculate monthly profit
@@ -73,10 +73,10 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     
       // Check for game over
   if (newCash < 0) {
-    setIsGameOver(true);
+      setIsGameOver(true);
   } else if (newCash >= 100000) {
-    setIsGameWon(true);
-  }
+      setIsGameWon(true);
+    }
 
     // Prepare month summary
     setMonthSummary({
@@ -116,10 +116,10 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
           if (!gameState) return prev;
           let newMonth = gameState.month + 1;
           let newYear = 2025; // Static for now
-          if (newMonth > 12) {
-            newMonth = 1;
-            newYear++;
-          }
+        if (newMonth > 12) {
+          newMonth = 1;
+          newYear++;
+        }
           return `${monthNames[newMonth - 1]} ${newYear}`;
         });
         processMonthEnd({ ...gameState, month: gameState.month + 1 } as GameState);
@@ -335,12 +335,12 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                 </div>
                 <div className="space-y-1">
                   {gameState.delayed_effects.map((effect, index) => (
-                    <div
-                      key={index}
-                      className="text-xs bg-amber-900/20 px-3 py-1 rounded-md flex justify-between items-center border border-amber-800/30"
-                    >
+                      <div
+                        key={index}
+                        className="text-xs bg-amber-900/20 px-3 py-1 rounded-md flex justify-between items-center border border-amber-800/30"
+                      >
                       <span className="truncate text-slate-300">{effect.name.substring(0, 15)}...</span>
-                      <span className="whitespace-nowrap text-amber-300">
+                        <span className="whitespace-nowrap text-amber-300">
                         {effect.revenue !== 0 && (
                           <span className={effect.revenue > 0 ? 'text-green-400' : 'text-red-400'}>
                             {effect.revenue > 0 ? '+' : ''}${effect.revenue}
@@ -352,8 +352,8 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                           </span>
                         )}
                         <span className="text-slate-400 ml-1">({effect.monthsRemaining}m)</span>
-                      </span>
-                    </div>
+                        </span>
+                      </div>
                   ))}
                 </div>
               </div>

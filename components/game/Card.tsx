@@ -8,17 +8,17 @@ interface CardProps {
 
 export default function Card({ card, onDecision, disabled }: CardProps) {
   if (!card) return null;
-
+  
   return (
     <div className="bg-slate-700 rounded-xl overflow-hidden border border-slate-600 shadow-lg">
       <div className={`p-3 text-white text-center ${getCardTypeColor(card.type)}`}>
         <span className="font-medium uppercase tracking-wider text-sm">{card.type}</span>
       </div>
-
+      
       <div className="p-5">
         <h2 className="text-xl font-bold mb-2 text-center text-white">{card.title}</h2>
         <div className="text-slate-300 mb-6 text-center">{card.description}</div>
-
+        
         <div className="space-y-4">
           {card.choices.map((choice, index) => (
             <motion.button
@@ -31,7 +31,7 @@ export default function Card({ card, onDecision, disabled }: CardProps) {
             >
               <div className="font-medium text-lg mb-2 text-white">{choice.label}</div>
               <div className="text-slate-300 mb-3">{choice.description}</div>
-
+              
               <div className="flex flex-wrap gap-2">
                 {renderEffect('Cash', choice.cash, 'green')}
                 {renderEffect('Revenue', choice.revenue, 'emerald', '/mo')}

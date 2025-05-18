@@ -1,9 +1,13 @@
-// app/api/admin/delete-card/route.js
-import { deleteCard } from '@/lib/game-data/data-service';
-import { NextResponse } from 'next/server';
+// // app/api/admin/delete-card/route.js
+// import { deleteCard } from '@/lib/game-data/data-service';
+// import { NextResponse } from 'next/server';
 
-export async function DELETE(request: Request) {
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase';
+
+export async function DELETE(request: NextRequest) {
   try {
+    const supabase = createServerSupabaseClient();
     const { searchParams } = new URL(request.url);
     const cardId = searchParams.get('id');
     
@@ -14,11 +18,15 @@ export async function DELETE(request: Request) {
       );
     }
     
-    const result = await deleteCard(cardId);
+    // Delete the card (choices should cascade delete based on DB constraints)
+    const { error } = await supabase
+      .from('cards')
+      .delete()
+      .eq('id', cardId);
     
-    if (!result.success) {
+    if (error) {
       return NextResponse.json(
-        { success: false, error: result.error?.message || 'Failed to delete card' },
+        { success: false, error: error.message },
         { status: 500 }
       );
     }
@@ -27,7 +35,7 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error deleting card:', error);
     return NextResponse.json(
-      { success: false, error: (error as { message?: string }).message || 'Internal server error' },
+      { success: false, error: (error as Error).message || 'Internal server error' },
       { status: 500 }
     );
   }

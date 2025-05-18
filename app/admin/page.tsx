@@ -74,12 +74,12 @@ export default async function AdminDashboard() {
             >
               Add New Card
             </Link>
-            <Link 
+            {/* <Link 
               href="/admin/settings" 
               className="block p-3 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors text-gray-700"
             >
               Game Settings
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>

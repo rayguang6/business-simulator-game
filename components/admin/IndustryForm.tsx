@@ -93,7 +93,7 @@ export default function IndustryForm({ industry }: IndustryFormProps) {
       )}
       
       <div className="grid grid-cols-2 gap-6 mb-6">
-        <div>
+        {/* <div>
           <label className="block text-gray-700 font-medium mb-2">
             Industry ID
           </label>
@@ -101,15 +101,14 @@ export default function IndustryForm({ industry }: IndustryFormProps) {
             type="text"
             name="id"
             value={formData.id}
-            onChange={handleChange}
-            disabled={!isNewIndustry}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-gray-700"
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
             placeholder="coffee-shop"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Unique identifier for the industry (used in URLs)
+            Unique identifier for the industry (auto-generated, cannot be changed)
           </p>
-        </div>
+        </div> */}
         
         <div>
           <label className="block text-gray-700 font-medium mb-2">
@@ -249,10 +248,10 @@ export default function IndustryForm({ industry }: IndustryFormProps) {
             onChange={handleCheckboxChange}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
-          <span className="ml-2 text-gray-700">Available to players</span>
+          <span className="ml-2 text-gray-700">Show to Players</span>
         </label>
         <p className="text-xs text-gray-500 mt-1 ml-6">
-          If unchecked, this industry will be shown as "Coming Soon"
+          If unchecked, this industry will be hidden from players and shown as "Coming Soon" in the game.
         </p>
       </div>
       
