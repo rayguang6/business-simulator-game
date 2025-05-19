@@ -73,6 +73,9 @@ function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Export the utility functions so they can be used elsewhere
+export { getRandomInRange, getRandomInt };
+
 // Get all cards for a specific industry with their choices
 export async function getCardsByIndustry(industryId: string): Promise<Card[]> {
   const supabase = createServerSupabaseClient();
@@ -100,25 +103,37 @@ export async function getCardsByIndustry(industryId: string): Promise<Card[]> {
       return null;
     }
 
-    // Randomize effects for each choice
+    // Pass through all the original fields, don't transform to game values yet
     const choices = choicesData.map(choice => ({
+      id: choice.id,
+      card_id: choice.card_id,
       label: choice.label,
       description: choice.description,
-      cash: getRandomInRange(choice.cash_min, choice.cash_max),
-      revenue: getRandomInRange(choice.revenue_min, choice.revenue_max),
-      expenses: getRandomInRange(choice.expenses_min, choice.expenses_max),
-      customerRating: getRandomInt(choice.customer_rating_min, choice.customer_rating_max),
-      duration: choice.duration
+      cash_min: choice.cash_min,
+      cash_max: choice.cash_max,
+      cash_is_percent: choice.cash_is_percent,
+      revenue_min: choice.revenue_min,
+      revenue_max: choice.revenue_max,
+      revenue_is_percent: choice.revenue_is_percent,
+      revenue_duration: choice.revenue_duration,
+      expenses_min: choice.expenses_min,
+      expenses_max: choice.expenses_max,
+      expenses_is_percent: choice.expenses_is_percent,
+      expenses_duration: choice.expenses_duration,
+      customer_rating_min: choice.customer_rating_min,
+      customer_rating_max: choice.customer_rating_max
     }));
 
     return {
       id: card.id,
+      industry_id: card.industry_id,  // Added this field to fix TypeScript error
       type: card.type,
       title: card.title,
       description: card.description,
       stage_month: card.stage_month,
       min_cash: card.min_cash,
       max_cash: card.max_cash,
+      rarity: card.rarity,  // Added this field to fix TypeScript error
       choices
     };
   }));

@@ -4,10 +4,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/game/Card';
-import MonthSummary from '@/components/game/MonthSummary';
+import PnLReport from '@/components/game/PnLReport';
 import GameOver from '@/components/game/GameOver';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/lib/store';
+import { getRandomInRange, getRandomInt } from '@/lib/game-data/data-service';
 
 export default function IndustryGame({ industryData: serverIndustryData, initialCards, industryId }: {
   industryData: Industry,
@@ -23,11 +24,16 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const updateCash = useGameStore((state) => state.updateCash);
   const updateRevenue = useGameStore((state) => state.updateRevenue);
   const updateExpenses = useGameStore((state) => state.updateExpenses);
+  const updateCustomerRating = useGameStore((state) => state.updateCustomerRating);
+  const addTemporaryEffect = useGameStore((state) => state.addTemporaryEffect);
+  const processTemporaryEffects = useGameStore((state) => state.processTemporaryEffects);
+  const addHistory = useGameStore((state) => state.addHistory);
   const nextMonth = useGameStore((state) => state.nextMonth);
+  const setGameOver = useGameStore((state) => state.setGameOver);
+  const setWinCondition = useGameStore((state) => state.setWinCondition);
 
   const [currentCard, setCurrentCard] = useState<Card | null>(null);
-  const [showMonthSummary, setShowMonthSummary] = useState(false);
-  const [monthSummary, setMonthSummary] = useState<any>(null);
+  const [showPnLReport, setShowPnLReport] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameWon, setIsGameWon] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
@@ -39,7 +45,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const [showConfirm, setShowConfirm] = useState(false);
   const [needNewCard, setNeedNewCard] = useState(false);
 
-  // Card type probabilities (can be tweaked or moved to DB/admin later)
+  // Simple card type probabilities
   const CARD_TYPE_PROBABILITIES = {
     opportunity: 0.60,
     problem: 0.20,
@@ -47,34 +53,26 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     happy: 0.05
   };
 
-  // Debug: component mount and props
-  useEffect(() => {
-    console.log('IndustryGame mounted', { 
-      initialCardsCount: initialCards?.length, 
-      industryData, 
-      industryId 
-    });
-  }, [initialCards, industryData, industryId]);
-
   // Initialize game state in Zustand
   useEffect(() => {
     if (!industryData) return;
     
-    setGameState({
+    const initialGameState = {
       cash: industryData.startingCash,
       revenue: industryData.startingRevenue,
       expenses: industryData.startingExpenses,
       month: 4, // Start in April
       month_end: false,
       customer_rating: 3,
-      industry_id: industryId, // Use the passed industryId instead of industryData.id
+      industry_id: industryId,
       temporary_effects: [],
       history: [],
       game_over: false,
       win_condition_met: false,
       active_cards: []
-    });
+    };
     
+    setGameState(initialGameState);
     setCurrentDate('April 2025');
     setCardsThisMonth(0);
   }, [industryData, setGameState, industryId]);
@@ -83,7 +81,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   useEffect(() => {
     if (!initialCards || !industryId) return;
     
-    // IMPORTANT FIX: Use the industryId prop directly
+    // Filter cards for this industry 
     const filtered = initialCards.filter(card => card.industry_id === industryId);
     console.log('Setting cards for industry', industryId, 'Count:', filtered.length);
     
@@ -105,14 +103,13 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       sum += prob;
       if (rand < sum) return type;
     }
-    // fallback
     return Object.keys(probabilities)[0];
   }
 
   // Show a new card when needed
   useEffect(() => {
-    // Only select a new card if one is needed and game conditions allow
-    if (!needNewCard || currentCard || !gameState || showMonthSummary || isGameOver || isGameWon || isProcessingDecision) {
+    // Only select a new card when conditions allow
+    if (!needNewCard || currentCard || !gameState || showPnLReport || isGameOver || isGameWon || isProcessingDecision) {
       return;
     }
     
@@ -123,9 +120,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       return;
     }
     
-    console.log('Selecting a new card...');
-    
-    // Filter cards by requirements
+    // Filter cards by game state requirements
     const filteredCards = cards.filter(card => {
       // Stage month (null means always available)
       if (card.stage_month !== null && card.stage_month > gameState.month) return false;
@@ -136,149 +131,188 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       return true;
     });
     
-    console.log('Total cards for industry:', cards.length);
     console.log('Cards after filtering:', filteredCards.length);
     
-    // If no cards meet criteria, use any available card
     if (filteredCards.length === 0) {
-      console.log('No cards meet filtering criteria, using any available card');
+      console.warn('No cards meet current criteria, using any available card');
       const randomIndex = Math.floor(Math.random() * cards.length);
       setCurrentCard(cards[randomIndex]);
-      setNeedNewCard(false);
-      return;
-    }
-    
-    // Pick a type by probability
-    const type = pickTypeByProbability(CARD_TYPE_PROBABILITIES);
-    console.log('Picked type:', type);
-    
-    const typeFiltered = filteredCards.filter(card => card.type === type);
-    console.log('Cards of picked type:', typeFiltered.length);
-    
-    // Use type-filtered cards or fallback to all filtered cards
-    let available = typeFiltered.length > 0 ? typeFiltered : filteredCards;
-    
-    if (available.length > 0) {
-      const randomIndex = Math.floor(Math.random() * available.length);
-      const selectedCard = available[randomIndex];
-      console.log('Selected card:', selectedCard.id, selectedCard.title);
-      setCurrentCard(selectedCard);
     } else {
-      // Should never get here, but just in case
-      console.error('No available cards after filtering');
-      if (cards.length > 0) {
-        const randomIndex = Math.floor(Math.random() * cards.length);
-        setCurrentCard(cards[randomIndex]);
-      }
+      // Pick a type by probability
+      const type = pickTypeByProbability(CARD_TYPE_PROBABILITIES);
+      console.log('Selected type:', type);
+      
+      // Filter by the selected type
+      const typeFiltered = filteredCards.filter(card => card.type === type);
+      console.log('Cards of type:', typeFiltered.length);
+      
+      // Use type-filtered cards or fallback to all filtered cards
+      let available = typeFiltered.length > 0 ? typeFiltered : filteredCards;
+      
+      // Pick a random card
+      const randomIndex = Math.floor(Math.random() * available.length);
+      setCurrentCard(available[randomIndex]);
     }
     
     setNeedNewCard(false);
-  }, [needNewCard, currentCard, gameState, showMonthSummary, isGameOver, isGameWon, isProcessingDecision, cards]);
+  }, [needNewCard, currentCard, gameState, showPnLReport, isGameOver, isGameWon, isProcessingDecision, cards]);
 
   // Process month end
-  const processMonthEnd = (state: GameState) => {
+  const processMonthEnd = () => {
+    if (!gameState) return;
+    
+    // Process temporary effects first
+    processTemporaryEffects();
+    
     // Calculate monthly profit
-    const monthlyRevenue = state.revenue;
-    const monthlyExpenses = state.expenses;
+    const monthlyRevenue = gameState.revenue;
+    const monthlyExpenses = gameState.expenses;
     const monthlyProfit = monthlyRevenue - monthlyExpenses;
-
+    
     // Add profit to cash
-    const newCash = state.cash + monthlyProfit;
     updateCash(monthlyProfit);
     
-    // Check for game over
-    if (newCash < 0) {
+    // Determine if game should end or player has won
+    if (gameState.cash + monthlyProfit < 0) {
       setIsGameOver(true);
-    } else if (newCash >= 100000) {
+      setGameOver(true);
+    } else if (gameState.cash + monthlyProfit >= 100000) {
       setIsGameWon(true);
+      setWinCondition(true);
     }
 
-    // Prepare month summary
-    setMonthSummary({
-      month: state.month,
-      revenue: monthlyRevenue,
-      expenses: monthlyExpenses,
-      profit: monthlyProfit,
-      cash: newCash
+    // Add monthly entry to history
+    addHistory({
+      month: gameState.month,
+      card_id: 'month_end',
+      choice_label: 'Month End',
+      effects: {
+        cash: monthlyProfit,
+        revenue: 0,
+        expenses: 0,
+        customer_rating: 0
+      }
     });
     
-    setShowMonthSummary(true);
-    return state;
+    // Show month-end effect animation
+    setEffects({
+      cash: monthlyProfit
+    });
+    
+    // Clear effects after animation
+    setTimeout(() => {
+      setEffects(null);
+      setNeedNewCard(true);
+    }, 1500);
   };
 
   // Handle player decision
   const makeDecision = (choice: CardChoice) => {
     if (!gameState || isProcessingDecision || !currentCard) return;
-    
     setIsProcessingDecision(true);
     
-    // Use the effect values as-is (already scaled and rounded by backend)
-    setEffects({
-      cash: (choice.cash_min ?? 0),
-      revenue: (choice.revenue_min ?? 0),
-      expenses: (choice.expenses_min ?? 0)
-    });
+    // Calculate randomized effects
+    const cashEffect = getRandomInRange(choice.cash_min ?? 0, choice.cash_max ?? (choice.cash_min ?? 0));
+    const revenueEffect = getRandomInRange(choice.revenue_min ?? 0, choice.revenue_max ?? (choice.revenue_min ?? 0));
+    const expensesEffect = getRandomInRange(choice.expenses_min ?? 0, choice.expenses_max ?? (choice.expenses_min ?? 0));
+    const customerRatingEffect = getRandomInt(choice.customer_rating_min ?? 0, choice.customer_rating_max ?? (choice.customer_rating_min ?? 0));
     
+    // Log the choices and calculated effects
+    console.log('--- CHOICE CLICKED ---');
+    console.log('Choice data:', choice);
+    console.log('Calculated effects:');
+    console.log(`Cash: ${cashEffect} (${choice.cash_is_percent ? 'percentage' : 'flat amount'})`);
+    console.log(`Revenue: ${revenueEffect}/mo (${choice.revenue_is_percent ? 'percentage' : 'flat amount'})`);
+    console.log(`Expenses: ${expensesEffect}/mo (${choice.expenses_is_percent ? 'percentage' : 'flat amount'})`);
+    console.log(`Customer Rating: ${customerRatingEffect} points`);
+    if (choice.revenue_duration && choice.revenue_duration > 1) {
+      console.log(`Revenue effect lasts for ${choice.revenue_duration} months`);
+    }
+    if (choice.expenses_duration && choice.expenses_duration > 1) {
+      console.log(`Expenses effect lasts for ${choice.expenses_duration} months`);
+    }
+    
+    // Show effects animation immediately
+    setEffects({
+      cash: cashEffect,
+      revenue: revenueEffect,
+      expenses: expensesEffect,
+      customer_rating: customerRatingEffect
+    });
+
+    // Apply effects immediately
+    updateCash(cashEffect);
+    updateRevenue(revenueEffect);
+    updateExpenses(expensesEffect);
+    if (customerRatingEffect !== 0) {
+      updateCustomerRating(customerRatingEffect);
+    }
+
+    // Add to game history
+    addHistory({
+      month: gameState.month,
+      card_id: currentCard.id,
+      choice_label: choice.label,
+      effects: {
+        cash: cashEffect,
+        revenue: revenueEffect,
+        expenses: expensesEffect,
+        customer_rating: customerRatingEffect
+      }
+    });
+
+    // Add any duration-based effects
+    if ((choice.revenue_duration && choice.revenue_duration > 1) || (choice.expenses_duration && choice.expenses_duration > 1)) {
+      const newEffect = {
+        name: `${currentCard.title}: ${choice.label}`,
+        revenue: choice.revenue_duration && choice.revenue_duration > 1 ? revenueEffect : undefined,
+        expenses: choice.expenses_duration && choice.expenses_duration > 1 ? expensesEffect : undefined,
+        customer_rating: customerRatingEffect !== 0 ? customerRatingEffect : undefined,
+        monthsRemaining: Math.max(choice.revenue_duration || 0, choice.expenses_duration || 0)
+      };
+      addTemporaryEffect(newEffect);
+    }
+
+    setCards(prevCards => prevCards.filter(card => card.id !== currentCard.id));
+    setCurrentCard(null);
+
+    const newCardsThisMonth = cardsThisMonth + 1;
+    setCardsThisMonth(newCardsThisMonth);
+
     setTimeout(() => {
-      // Apply effects to game state
-      updateCash(choice.cash_min ?? 0);
-      updateRevenue(choice.revenue_min ?? 0);
-      updateExpenses(choice.expenses_min ?? 0);
-      
-      // Store current card ID before removing
-      const currentCardId = currentCard.id;
-      
-      // Remove the current card from the available cards
-      setCards(prevCards => {
-        return prevCards.filter(card => card.id !== currentCardId);
-      });
-      
-      // Clear current card to allow new card selection
-      setCurrentCard(null);
-      
-      // Update month counter - every 2 cards = 1 month
-      const newCardsThisMonth = cardsThisMonth + 1;
-      setCardsThisMonth(newCardsThisMonth);
-      
       if (newCardsThisMonth >= 2) {
-        // Month end processing
         setCardsThisMonth(0);
         nextMonth();
-        
         setCurrentDate((prev) => {
           const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'];
-            
           if (!gameState) return prev;
-          
           let newMonth = gameState.month + 1;
-          let newYear = 2025; // Static for now
-          
+          let newYear = 2025;
           if (newMonth > 12) {
             newMonth = 1;
             newYear++;
           }
-          
           return `${monthNames[newMonth - 1]} ${newYear}`;
         });
-        
-        processMonthEnd({ ...gameState, month: gameState.month + 1 } as GameState);
+        processMonthEnd();
       } else {
-        // If not month end, request a new card
+        setEffects(null);
         setNeedNewCard(true);
       }
-      
-      setTimeout(() => {
-        setEffects(null);
-        setIsProcessingDecision(false);
-      }, 1000);
+      setIsProcessingDecision(false);
     }, 1500);
   };
 
-  // Close month summary and continue
-  const closeMonthSummary = () => {
-    setShowMonthSummary(false);
-    setNeedNewCard(true); // Request a new card when summary is closed
+  // Show/hide PnL report
+  const togglePnLReport = () => {
+    setShowPnLReport(!showPnLReport);
+  };
+  
+  // Close PnL report
+  const closePnLReport = () => {
+    setShowPnLReport(false);
+    setNeedNewCard(true);
   };
 
   // Restart game
@@ -310,6 +344,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     return gameState ? gameState.revenue - gameState.expenses : 0;
   };
 
+  // Welcome screen
   if (showWelcome) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
@@ -334,6 +369,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     );
   }
 
+  // Loading state
   if (!industryData || !gameState) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-900 text-white">
@@ -342,6 +378,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     );
   }
 
+  // Main game UI
   return (
     <div className="h-screen bg-slate-900 text-white">
       <div className="max-w-md mx-auto bg-slate-800 h-screen flex flex-col">
@@ -370,7 +407,10 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
               {/* Customer Rating Stars at Right */}
               <div className="flex items-center ml-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={i < Math.round(gameState.customer_rating) ? 'text-yellow-400 text-lg' : 'text-slate-600 text-lg'}>
+                  <span 
+                    key={i} 
+                    className={i < Math.round(gameState.customer_rating) ? 'text-yellow-400 text-lg' : 'text-slate-600 text-lg'}
+                  >
                     ★
                   </span>
                 ))}
@@ -382,7 +422,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
           <div className="pt-3 pb-2 px-3 bg-slate-800">
             {/* Main Metrics */}
             <div className="grid grid-cols-3 gap-2 mb-3">
-              {/* Fixed UI for Cash Metric Card to avoid overlap */}
+              {/* Cash Metric Card */}
               <div className="relative bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-3 overflow-hidden border border-slate-700 shadow-md">
                 <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-yellow-500 to-amber-400 opacity-75"></div>
                 <div className="flex items-center text-amber-400 text-sm mb-1 font-medium">
@@ -395,7 +435,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   </div>
                   {/* Cash Animation */}
                   <AnimatePresence>
-                    {effects && effects.cash !== 0 && (
+                    {effects && effects.cash !== 0 && effects.cash !== undefined && (
                       <motion.div
                         key="cash-effect"
                         className={`text-sm font-semibold ${effects.cash > 0 ? 'text-green-400' : 'text-red-400'}`}
@@ -411,7 +451,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                 </div>
               </div>
 
-              {/* Fixed UI for Revenue Metric Card to avoid overlap */}
+              {/* Revenue Metric Card */}
               <div className="relative bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-3 overflow-hidden border border-slate-700 shadow-md">
                 <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-400 opacity-75"></div>
                 <div className="flex items-center text-emerald-400 text-sm mb-1 font-medium">
@@ -424,7 +464,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   </div>
                   {/* Revenue Animation */}
                   <AnimatePresence>
-                    {effects && effects.revenue !== 0 && (
+                    {effects && effects.revenue !== 0 && effects.revenue !== undefined && (
                       <motion.div
                         key="revenue-effect"
                         className={`text-sm font-semibold ${effects.revenue > 0 ? 'text-green-400' : 'text-red-400'}`}
@@ -433,14 +473,14 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        {effects.revenue > 0 ? '+' : ''}${effects.revenue.toLocaleString()}
+                        {effects.revenue > 0 ? '+' : ''}${effects.revenue.toLocaleString()}/mo
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
               </div>
 
-              {/* Fixed UI for Expenses Metric Card to avoid overlap */}
+              {/* Expenses Metric Card */}
               <div className="relative bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-3 overflow-hidden border border-slate-700 shadow-md">
                 <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-500 to-rose-400 opacity-75"></div>
                 <div className="flex items-center text-rose-400 text-sm mb-1 font-medium">
@@ -453,7 +493,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                   </div>
                   {/* Expenses Animation */}
                   <AnimatePresence>
-                    {effects && effects.expenses !== 0 && (
+                    {effects && effects.expenses !== 0 && effects.expenses !== undefined && (
                       <motion.div
                         key="expenses-effect"
                         className={`text-sm font-semibold ${effects.expenses < 0 ? 'text-green-400' : 'text-red-400'}`}
@@ -462,7 +502,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        {effects.expenses < 0 ? '-' : '+'}${Math.abs(effects.expenses).toLocaleString()}
+                        {effects.expenses < 0 ? '-' : '+'}${Math.abs(effects.expenses).toLocaleString()}/mo
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -470,17 +510,35 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
               </div>
             </div>
             
-            {/* Month Progress */}
-            <div className="mb-3">
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 rounded-full"
-                  style={{ width: `${cardsThisMonth * 50}%` }}
-                ></div>
+            {/* Monthly Profit Info */}
+            <div className="mb-3 bg-slate-700/50 rounded-md p-2 text-center">
+              <div className="text-sm text-slate-300">
+                Monthly Profit: <span className={getProfit() >= 0 ? 'text-green-400' : 'text-red-400'}>
+                  ${getProfit().toLocaleString()}/mo
+                </span>
               </div>
-              <div className="flex justify-between text-xs text-slate-400 mt-1">
-                <span>Month Progress</span>
-                <span>{cardsThisMonth}/2 decisions</span>
+            </div>
+            
+            {/* PnL Report Button & Month Progress */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={togglePnLReport}
+                className="text-xs bg-blue-700/40 hover:bg-blue-700/60 text-blue-200 px-3 py-1 rounded-md transition-colors duration-200 flex items-center"
+              >
+                <span className="mr-1">📊</span> Financial Report
+              </button>
+              
+              <div className="flex-grow ml-3">
+                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 rounded-full"
+                    style={{ width: `${cardsThisMonth * 50}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>Month Progress</span>
+                  <span>{cardsThisMonth}/2 decisions</span>
+                </div>
               </div>
             </div>
 
@@ -583,18 +641,18 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                     </div>
                   </div>
                 </motion.div>
-              ) : showMonthSummary ? (
+              ) : showPnLReport ? (
                 <motion.div
-                  key="month-summary"
+                  key="pnl-report"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.3 }}
                   className="w-full"
                 >
-                  <MonthSummary
-                    summary={monthSummary}
-                    onClose={closeMonthSummary}
+                  <PnLReport
+                    gameState={gameState}
+                    onClose={closePnLReport}
                   />
                 </motion.div>
               ) : currentCard ? (
@@ -623,8 +681,8 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
         </div>
       </div>
 
-      {/* Confirmation Dialog */}
-      {showConfirm && (
+     {/* Confirmation Dialog */}
+     {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50">
           <div className="bg-slate-800 rounded-lg shadow-lg p-6 max-w-xs w-full border border-blue-700/40">
             <h3 className="text-lg font-bold mb-2 text-white">Quit Game?</h3>
