@@ -73,8 +73,15 @@ function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// For percentage effects (no scaling)
+function getRandomPercentInRange(min: number, max: number) {
+  if (typeof min !== 'number' || typeof max !== 'number') return 0;
+  if (min === max) return min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 // Export the utility functions so they can be used elsewhere
-export { getRandomInRange, getRandomInt };
+export { getRandomInRange, getRandomInt, getRandomPercentInRange };
 
 // Get all cards for a specific industry with their choices
 export async function getCardsByIndustry(industryId: string): Promise<Card[]> {

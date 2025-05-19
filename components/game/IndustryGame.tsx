@@ -8,7 +8,7 @@ import PnLReport from '@/components/game/PnLReport';
 import GameOver from '@/components/game/GameOver';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/lib/store';
-import { getRandomInRange, getRandomInt } from '@/lib/game-data/data-service';
+import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/game-data/data-service';
 
 export default function IndustryGame({ industryData: serverIndustryData, initialCards, industryId }: {
   industryData: Industry,
@@ -44,6 +44,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
   const [showWelcome, setShowWelcome] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
   const [needNewCard, setNeedNewCard] = useState(false);
+  const [effectDetails, setEffectDetails] = useState<any>(null);
 
   // Simple card type probabilities
   const CARD_TYPE_PROBABILITIES = {
@@ -159,31 +160,34 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
 
   // Process month end
   const processMonthEnd = () => {
-    if (!gameState) return;
+    // Always get the latest state from the store
+    const latestState = useGameStore.getState();
+    const latestGameState = latestState.gameState;
+    if (!latestGameState) return;
     
     // Process temporary effects first
     processTemporaryEffects();
     
-    // Calculate monthly profit
-    const monthlyRevenue = gameState.revenue;
-    const monthlyExpenses = gameState.expenses;
+    // Calculate monthly profit using the latest state
+    const monthlyRevenue = latestGameState.revenue;
+    const monthlyExpenses = latestGameState.expenses;
     const monthlyProfit = monthlyRevenue - monthlyExpenses;
     
     // Add profit to cash
     updateCash(monthlyProfit);
     
     // Determine if game should end or player has won
-    if (gameState.cash + monthlyProfit < 0) {
+    if (latestGameState.cash + monthlyProfit < 0) {
       setIsGameOver(true);
       setGameOver(true);
-    } else if (gameState.cash + monthlyProfit >= 100000) {
+    } else if (latestGameState.cash + monthlyProfit >= 100000) {
       setIsGameWon(true);
       setWinCondition(true);
     }
 
     // Add monthly entry to history
     addHistory({
-      month: gameState.month,
+      month: latestGameState.month,
       card_id: 'month_end',
       choice_label: 'Month End',
       effects: {
@@ -212,11 +216,59 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
     setIsProcessingDecision(true);
     
     // Calculate randomized effects
-    const cashEffect = getRandomInRange(choice.cash_min ?? 0, choice.cash_max ?? (choice.cash_min ?? 0));
-    const revenueEffect = getRandomInRange(choice.revenue_min ?? 0, choice.revenue_max ?? (choice.revenue_min ?? 0));
-    const expensesEffect = getRandomInRange(choice.expenses_min ?? 0, choice.expenses_max ?? (choice.expenses_min ?? 0));
+    // If *_is_percent is true, calculate as a percent of the current value
+    const cashBase = gameState.cash;
+    const revenueBase = gameState.revenue;
+    const expensesBase = gameState.expenses;
+
+    // Cash
+    let cashRandom: number;
+    if (choice.cash_is_percent) {
+      cashRandom = getRandomPercentInRange(choice.cash_min ?? 0, choice.cash_max ?? (choice.cash_min ?? 0));
+    } else {
+      cashRandom = getRandomInRange(choice.cash_min ?? 0, choice.cash_max ?? (choice.cash_min ?? 0));
+    }
+    let cashEffect = cashRandom;
+    if (choice.cash_is_percent) {
+      cashEffect = Math.round(cashBase * (cashRandom / 100));
+      console.log(`[CASH] Random percent: ${cashRandom}%, Base: ${cashBase}, Effect: ${cashEffect}`);
+    }
+
+    // Revenue
+    let revenueRandom: number;
+    if (choice.revenue_is_percent) {
+      revenueRandom = getRandomPercentInRange(choice.revenue_min ?? 0, choice.revenue_max ?? (choice.revenue_min ?? 0));
+    } else {
+      revenueRandom = getRandomInRange(choice.revenue_min ?? 0, choice.revenue_max ?? (choice.revenue_min ?? 0));
+    }
+    let revenueEffect = revenueRandom;
+    if (choice.revenue_is_percent) {
+      revenueEffect = Math.round(revenueBase * (revenueRandom / 100));
+      console.log(`[REVENUE] Random percent: ${revenueRandom}%, Base: ${revenueBase}, Effect: ${revenueEffect}`);
+    }
+
+    // Expenses
+    let expensesRandom: number;
+    if (choice.expenses_is_percent) {
+      expensesRandom = getRandomPercentInRange(choice.expenses_min ?? 0, choice.expenses_max ?? (choice.expenses_min ?? 0));
+    } else {
+      expensesRandom = getRandomInRange(choice.expenses_min ?? 0, choice.expenses_max ?? (choice.expenses_min ?? 0));
+    }
+    let expensesEffect = expensesRandom;
+    if (choice.expenses_is_percent) {
+      expensesEffect = Math.round(expensesBase * (expensesRandom / 100));
+      console.log(`[EXPENSES] Random percent: ${expensesRandom}%, Base: ${expensesBase}, Effect: ${expensesEffect}`);
+    }
+
     const customerRatingEffect = getRandomInt(choice.customer_rating_min ?? 0, choice.customer_rating_max ?? (choice.customer_rating_min ?? 0));
     
+    // Store effect details for UI
+    setEffectDetails({
+      cash: choice.cash_is_percent ? { percent: cashRandom, value: cashEffect } : null,
+      revenue: choice.revenue_is_percent ? { percent: revenueRandom, value: revenueEffect } : null,
+      expenses: choice.expenses_is_percent ? { percent: expensesRandom, value: expensesEffect } : null,
+    });
+
     // Log the choices and calculated effects
     console.log('--- CHOICE CLICKED ---');
     console.log('Choice data:', choice);
@@ -273,7 +325,6 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
       addTemporaryEffect(newEffect);
     }
 
-    setCards(prevCards => prevCards.filter(card => card.id !== currentCard.id));
     setCurrentCard(null);
 
     const newCardsThisMonth = cardsThisMonth + 1;
@@ -444,7 +495,9 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        {effects.cash > 0 ? '+' : ''}${effects.cash.toLocaleString()}
+                        {effectDetails?.cash
+                          ? `${effectDetails.cash.percent > 0 ? '+' : ''}${effectDetails.cash.percent}% = ${effectDetails.cash.value > 0 ? '+' : ''}${effectDetails.cash.value}`
+                          : `${effects.cash > 0 ? '+' : ''}${effects.cash}`}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -473,7 +526,9 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        {effects.revenue > 0 ? '+' : ''}${effects.revenue.toLocaleString()}/mo
+                        {effectDetails?.revenue
+                          ? `${effectDetails.revenue.percent > 0 ? '+' : ''}${effectDetails.revenue.percent}% = ${effectDetails.revenue.value > 0 ? '+' : ''}${effectDetails.revenue.value}/mo`
+                          : `${effects.revenue > 0 ? '+' : ''}${effects.revenue}/mo`}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -502,7 +557,9 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        {effects.expenses < 0 ? '-' : '+'}${Math.abs(effects.expenses).toLocaleString()}/mo
+                        {effectDetails?.expenses
+                          ? `${effectDetails.expenses.percent > 0 ? '+' : ''}${effectDetails.expenses.percent}% = ${effectDetails.expenses.value > 0 ? '+' : ''}${effectDetails.expenses.value}/mo`
+                          : `${effects.expenses < 0 ? '-' : '+'}${Math.abs(effects.expenses)}/mo`}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -668,6 +725,7 @@ export default function IndustryGame({ industryData: serverIndustryData, initial
                     card={currentCard}
                     onDecision={makeDecision}
                     disabled={isProcessingDecision}
+                    effectDetails={effectDetails}
                   />
                 </motion.div>
               ) : (

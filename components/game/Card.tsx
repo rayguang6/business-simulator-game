@@ -4,9 +4,14 @@ interface CardProps {
   card: Card;
   onDecision: (choice: CardChoice) => void;
   disabled?: boolean;
+  effectDetails?: {
+    cash?: { percent: number, value: number } | null;
+    revenue?: { percent: number, value: number } | null;
+    expenses?: { percent: number, value: number } | null;
+  };
 }
 
-export default function Card({ card, onDecision, disabled }: CardProps) {
+export default function Card({ card, onDecision, disabled, effectDetails }: CardProps) {
   if (!card) return null;
   
   // Debug: Check card and choice data
@@ -109,7 +114,9 @@ function getTailwindColor(color: string, type: 'bg' | 'text'): string {
 function renderRangeEffect(label: string, min: number | undefined, max: number | undefined, isPercent: boolean | undefined, color: string, suffix = '') {
   console.log(`Rendering ${label}: min=${min}, max=${max}, isPercent=${isPercent}`);
   
-  if (typeof min !== 'number' && typeof max !== 'number') return null;
+  // Skip rendering if both min and max are 0 or undefined
+  if ((min === 0 || min === undefined) && (max === 0 || max === undefined)) return null;
+  
   const percentSign = isPercent ? '%' : '';
   if (min === max || typeof max !== 'number') {
     if (typeof min !== 'number' || min === 0) return null;
