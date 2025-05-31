@@ -1,3 +1,4 @@
+export const revalidate = 15;
 import { getIndustries } from '@/lib/game-data/data-service';
 import IndustrySelector from '@/components/home/IndustrySelector';
 

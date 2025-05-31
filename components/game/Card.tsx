@@ -14,9 +14,6 @@ interface CardProps {
 export default function Card({ card, onDecision, disabled, effectDetails }: CardProps) {
   if (!card) return null;
   
-  // Debug: Check card and choice data
-  console.log('Card Data:', card);
-  
   return (
     <div className="bg-slate-700 rounded-xl overflow-hidden border border-slate-600 shadow-lg">
       <div className={`p-3 text-white text-center ${getCardTypeColor(card.type)}`}>
@@ -29,16 +26,10 @@ export default function Card({ card, onDecision, disabled, effectDetails }: Card
         
         <div className="space-y-4">
           {card.choices.map((choice, index) => {
-            console.log(`Choice ${index}:`, choice);
-            console.log(`Cash: min=${choice.cash_min}, max=${choice.cash_max}, is_percent=${choice.cash_is_percent}`);
-            console.log(`Revenue: min=${choice.revenue_min}, max=${choice.revenue_max}, is_percent=${choice.revenue_is_percent}`);
-            console.log(`Expenses: min=${choice.expenses_min}, max=${choice.expenses_max}, is_percent=${choice.expenses_is_percent}`);
-            
             return (
               <motion.button
                 key={index}
                 onClick={() => {
-                  console.log('Clicked choice:', choice);
                   !disabled && onDecision(choice);
                 }}
                 className="cursor-pointer w-full text-left p-4 border border-slate-600 rounded-lg hover:border-indigo-400 hover:shadow-lg shadow transition-all duration-200 disabled:opacity-70 bg-slate-800"
@@ -112,8 +103,6 @@ function getTailwindColor(color: string, type: 'bg' | 'text'): string {
 }
 
 function renderRangeEffect(label: string, min: number | undefined, max: number | undefined, isPercent: boolean | undefined, color: string, suffix = '') {
-  console.log(`Rendering ${label}: min=${min}, max=${max}, isPercent=${isPercent}`);
-  
   // Skip rendering if both min and max are 0 or undefined
   if ((min === 0 || min === undefined) && (max === 0 || max === undefined)) return null;
   
