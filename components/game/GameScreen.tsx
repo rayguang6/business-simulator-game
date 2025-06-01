@@ -5,10 +5,22 @@ import { CardTypeEnum } from '@/lib/enums';
 import GameHUD from './GameHUD';
 import { useRouter } from 'next/navigation';
 import { RoadObject } from '@/lib/game/managers/RoadObjectManager';
-import Card from '@/components/game/Card';
+import CardDisplay from '@/components/game/Card';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/game-data/data-service';
 
-// CardTypeEnum, Industry, Card are globally available from lib/global.d.ts
+// CardTypeEnum, Industry, Card, CardChoice are globally available from lib/global.d.ts
+
+interface EffectCalculationDetail {
+  metric: 'cash' | 'revenue' | 'expenses' | 'customerRating';
+  value: number; // The actual calculated monetary or point change
+  isPercent: boolean;
+  displayPercentValue?: number; // The raw percentage value, e.g., 10 for 10%
+}
+
+export interface EffectAnimationItem extends EffectCalculationDetail {
+  id: string;
+}
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -68,6 +80,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [monthPhase, setMonthPhase] = useState<MonthPhase>('awaitingFirstCard');
   const [cardsCollectedCount, setCardsCollectedCount] = useState(0); 
   const [currentDisplayCard, setCurrentDisplayCard] = useState<Card | null>(null);
+  const [effectAnimations, setEffectAnimations] = useState<EffectAnimationItem[]>([]); // New state for animations
 
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
 
@@ -222,9 +235,174 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     return <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', textAlign: 'center', padding: '10px', backgroundColor: '#333', color: 'white', zIndex: 2000 }}>Loading Game...</div>;
   }
 
+  const handleAnimationComplete = (animationId: string) => {
+    setEffectAnimations(prevAnims => prevAnims.filter(anim => anim.id !== animationId));
+  };
+
+  // Function to calculate card choice effects
+  const calculateCardChoiceEffects = (choice: CardChoice, currentGameState: { cash: number, revenue: number, expenses: number, customerRating: number }): EffectCalculationDetail[] => {
+    if (!isMounted) {
+      console.warn("calculateCardChoiceEffects: Not mounted.");
+      return [];
+    }
+
+    const { cash: currentCash, revenue: currentRevenue, expenses: currentExpenses, customerRating: currentCustomerRating } = currentGameState;
+    const calculatedEffects: EffectCalculationDetail[] = [];
+
+    console.log(`GameScreen: Calculating effects for choice: "${choice.label}"`);
+
+    // --- Cash Effect ---
+    if (choice.cash_min !== undefined) {
+      let cashChange = 0;
+      let displayPercent: number | undefined = undefined;
+      if (choice.cash_is_percent) {
+        const percentToApply = (choice.cash_max !== undefined && choice.cash_min !== choice.cash_max) 
+            ? getRandomPercentInRange(choice.cash_min, choice.cash_max)
+            : choice.cash_min;
+        cashChange = Math.round(currentCash * (percentToApply / 100));
+        displayPercent = percentToApply;
+      } else {
+        cashChange = (choice.cash_max !== undefined && choice.cash_min !== choice.cash_max)
+            ? getRandomInRange(choice.cash_min, choice.cash_max)
+            : choice.cash_min;
+      }
+      if (cashChange !== 0 || choice.cash_min !== 0) { // Add if there's a change or if it explicitly sets to 0 from non-zero
+        calculatedEffects.push({
+            metric: 'cash',
+            value: cashChange,
+            isPercent: choice.cash_is_percent,
+            displayPercentValue: displayPercent
+        });
+      }
+    }
+
+    // --- Revenue Effect ---
+    if (choice.revenue_min !== undefined) {
+      let revenueChange = 0;
+      let displayPercent: number | undefined = undefined;
+      if (choice.revenue_is_percent) {
+        const percentToApply = (choice.revenue_max !== undefined && choice.revenue_min !== choice.revenue_max)
+            ? getRandomPercentInRange(choice.revenue_min, choice.revenue_max)
+            : choice.revenue_min;
+        revenueChange = Math.round(currentRevenue * (percentToApply / 100));
+        displayPercent = percentToApply;
+      } else {
+        revenueChange = (choice.revenue_max !== undefined && choice.revenue_min !== choice.revenue_max)
+            ? getRandomInRange(choice.revenue_min, choice.revenue_max)
+            : choice.revenue_min;
+      }
+      if (revenueChange !== 0 || choice.revenue_min !==0) {
+         calculatedEffects.push({
+            metric: 'revenue',
+            value: revenueChange,
+            isPercent: choice.revenue_is_percent,
+            displayPercentValue: displayPercent
+        });
+      }
+    }
+
+    // --- Expenses Effect ---
+    if (choice.expenses_min !== undefined) {
+      let expensesChange = 0;
+      let displayPercent: number | undefined = undefined;
+      if (choice.expenses_is_percent) {
+        const percentToApply = (choice.expenses_max !== undefined && choice.expenses_min !== choice.expenses_max)
+            ? getRandomPercentInRange(choice.expenses_min, choice.expenses_max)
+            : choice.expenses_min;
+        expensesChange = Math.round(currentExpenses * (percentToApply / 100));
+        displayPercent = percentToApply;
+      } else {
+        expensesChange = (choice.expenses_max !== undefined && choice.expenses_min !== choice.expenses_max)
+            ? getRandomInRange(choice.expenses_min, choice.expenses_max)
+            : choice.expenses_min;
+      }
+       if (expensesChange !== 0 || choice.expenses_min !== 0) {
+        calculatedEffects.push({
+            metric: 'expenses',
+            value: expensesChange,
+            isPercent: choice.expenses_is_percent,
+            displayPercentValue: displayPercent
+        });
+      }
+    }
+
+    // --- Customer Rating Effect ---
+    if (choice.customer_rating_min !== undefined) {
+      let ratingChange = 0;
+      if (choice.customer_rating_max !== undefined && choice.customer_rating_min !== choice.customer_rating_max) {
+        ratingChange = getRandomInt(choice.customer_rating_min, choice.customer_rating_max);
+      } else {
+        ratingChange = choice.customer_rating_min;
+      }
+      if (ratingChange !== 0 || choice.customer_rating_min !== 0) {
+          const potentialNewRating = currentCustomerRating + ratingChange;
+          const actualNewRating = Math.max(0, Math.min(100, potentialNewRating));
+          const finalRatingChange = actualNewRating - currentCustomerRating;
+
+          if(finalRatingChange !== 0 || choice.customer_rating_min !== 0) {
+            calculatedEffects.push({
+                metric: 'customerRating',
+                value: finalRatingChange, 
+                isPercent: false, // Customer rating is not percentage based in this model
+            });
+          }
+      }
+    }
+    console.log("Calculated effects:", calculatedEffects);
+    return calculatedEffects;
+  };
+
   const handleCardDecision = (choice: CardChoice) => {
     console.log("Card decision made:", choice.label, choice);
-    // TODO: Apply effects of the choice
+    
+    if (currentDisplayCard) {
+      const effectsToApply = calculateCardChoiceEffects(choice, {cash, revenue, expenses, customerRating});
+      
+      const newAnimations: EffectAnimationItem[] = [];
+
+      effectsToApply.forEach(eff => {
+        const animationId = `eff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        newAnimations.push({ ...eff, id: animationId });
+
+        switch(eff.metric) {
+          case 'cash':
+            setCash(prev => {
+              const newValue = prev + eff.value;
+              console.log(`  Cash: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
+              return newValue;
+            });
+            break;
+          case 'revenue':
+            setRevenue(prev => {
+              const newValue = prev + eff.value;
+              console.log(`  Revenue: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
+              return newValue;
+            });
+            break;
+          case 'expenses':
+            setExpenses(prev => {
+              const newValue = prev + eff.value;
+              console.log(`  Expenses: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
+              return newValue;
+            });
+            break;
+          case 'customerRating':
+            setCustomerRating(prev => {
+              const newValue = prev + eff.value; // eff.value already considers 0-100 bounds
+              console.log(`  Customer Rating: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
+              return newValue; // No need to clamp again as calculateCardChoiceEffects pre-clamps for rating
+            });
+            break;
+        }
+      });
+
+      if (newAnimations.length > 0) {
+        setEffectAnimations(prevAnims => [...prevAnims, ...newAnimations]);
+      }
+
+    } else {
+      console.warn("handleCardDecision called but currentDisplayCard is null. Effects not applied.");
+    }
 
     setCurrentDisplayCard(null);
 
@@ -251,6 +429,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
         industryName={industry.name}
         cardsCollectedCount={cardsCollectedCount}
         onBackButtonClick={handleBackButtonClick}
+        effectAnimations={effectAnimations}
+        onAnimationComplete={handleAnimationComplete}
       />
       <GameRunnerScene ref={gameRunnerSceneRef} isPaused={!!currentDisplayCard} onCollect={handleCollect} />
 
@@ -276,7 +456,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
             className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden"
           >
             <div className="overflow-y-auto p-3 sm:p-4 flex-grow">
-              <Card 
+              <CardDisplay 
                 card={currentDisplayCard} 
                 onDecision={handleCardDecision}
               />

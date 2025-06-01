@@ -1,4 +1,7 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { EffectAnimationItem } from './GameScreen';
+import StatDeltaAnimation from './StatDeltaAnimation';
 
 interface GameHUDProps {
   cash: number;
@@ -10,6 +13,8 @@ interface GameHUDProps {
   industryName: string;
   cardsCollectedCount: number; // New prop for month progress
   onBackButtonClick: () => void; // New prop for back button callback
+  effectAnimations?: EffectAnimationItem[];      // New prop for animations
+  onAnimationComplete?: (id: string) => void; // New prop for callback
 }
 
 const monthNames = [
@@ -53,20 +58,37 @@ const GameHUD: React.FC<GameHUDProps> = ({
   year, 
   industryName,
   cardsCollectedCount, 
-  onBackButtonClick    
+  onBackButtonClick,    
+  effectAnimations = [],    // Default to empty array
+  onAnimationComplete = () => {} // Default to no-op function
 }) => {
   const pnl = revenue - expenses;
 
-  const StatCard: React.FC<{ icon: string; label: string; value: string; bgColorClass?: string }> = 
-    ({ icon, label, value, bgColorClass = 'bg-slate-800' }) => (
-    // Adjusted min-width and padding for very small screens, and slightly larger screens
-    // Using flex-shrink-0 initially to prevent shrinking, but flex-1 allows them to grow.
-    <div className={`flex-1 p-1 xxs:p-1.5 xs:p-2 rounded shadow-md ${bgColorClass} text-white min-w-[70px] xxs:min-w-[75px] xs:min-w-[85px] sm:min-w-[90px]`}>
+  const StatCard: React.FC<{ 
+    icon: string; 
+    label: string; 
+    value: string; 
+    metricType: EffectAnimationItem['metric'];
+    bgColorClass?: string 
+  }> = 
+    ({ icon, label, value, metricType, bgColorClass = 'bg-slate-800' }) => (
+    <div className={`relative flex-1 p-1 xxs:p-1.5 xs:p-2 rounded shadow-md ${bgColorClass} text-white min-w-[70px] xxs:min-w-[75px] xs:min-w-[85px] sm:min-w-[90px]`}>
       <div className="flex items-center mb-0 xxs:mb-0.5">
         <span className="text-xs xxs:text-sm xs:text-base mr-0.5 xxs:mr-1">{icon}</span>
         <span className="text-[8px] xxs:text-[9px] xs:text-[10px] font-medium uppercase text-slate-300 xxs:text-slate-400">{label}</span>
       </div>
       <div className="text-sm xxs:text-base xs:text-lg font-bold truncate">{value}</div>
+      <AnimatePresence>
+        {effectAnimations
+          .filter(anim => anim.metric === metricType)
+          .map(animItem => (
+            <StatDeltaAnimation 
+              key={animItem.id} 
+              animationItem={animItem} 
+              onComplete={onAnimationComplete} 
+            />
+          ))}
+      </AnimatePresence>
     </div>
   );
 
@@ -92,18 +114,34 @@ const GameHUD: React.FC<GameHUDProps> = ({
         <div className="text-[11px] xs:text-xs font-semibold px-1 text-center flex-shrink-0">
           {formatMonthYear(month, year)}
         </div>
-        <div className="flex-shrink-0">
+        <div className="relative flex-shrink-0">
           <StarRating ratingOutOf100={customerRating} />
+          <AnimatePresence>
+            {effectAnimations
+              .filter(anim => anim.metric === 'customerRating')
+              .map(animItem => (
+                <StatDeltaAnimation 
+                  key={animItem.id} 
+                  animationItem={animItem} 
+                  onComplete={onAnimationComplete} 
+                  customPositionStyle={{ 
+                    top: '15%',
+                    transform: 'translateY(-50%)',
+                    right: 'calc(100% + 4px)',
+                    zIndex: 10 
+                  }}
+                />
+              ))}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Main Stats Area: Fine-tuned paddings and gaps */}
       <div className="px-1.5 py-1 sm:px-2 sm:py-1.5 bg-slate-900">
-        {/* Ensure this flex container allows cards to take up space but not wrap initially if possible */}
         <div className="flex flex-row justify-between items-stretch gap-1 xxs:gap-1.5 xs:gap-2 mb-1 xxs:mb-1.5">
-          <StatCard icon="💰" label="CASH" value={formatCurrency(cash)} bgColorClass="bg-slate-800" />
-          <StatCard icon="📈" label="REVENUE" value={formatCurrency(revenue)} bgColorClass="bg-slate-800" />
-          <StatCard icon="🧾" label="EXPENSES" value={formatCurrency(expenses)} bgColorClass="bg-slate-800" />
+          <StatCard icon="💰" label="CASH" value={formatCurrency(cash)} metricType="cash" bgColorClass="bg-slate-800" />
+          <StatCard icon="📈" label="REVENUE" value={formatCurrency(revenue)} metricType="revenue" bgColorClass="bg-slate-800" />
+          <StatCard icon="🧾" label="EXPENSES" value={formatCurrency(expenses)} metricType="expenses" bgColorClass="bg-slate-800" />
         </div>
         
         {/* PNL Report Button and Month Progress Area: Fine-tuned */}
