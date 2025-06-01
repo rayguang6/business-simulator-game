@@ -11,18 +11,13 @@ interface Industry {
   isAvailable: boolean;
 }
 
-enum CardTypeEnum {
-  opportunity = 'opportunity',
-  problem = 'problem',
-  market = 'market',
-  happy = 'happy'
-}
+// enum CardTypeEnum { ... } // Definition removed, now in lib/enums.ts
 
 // Card type (matches your cards table)
 interface Card {
   id: string;
   industry_id: string;
-  type: CardTypeEnum; // 'opportunity' | 'problem' | 'market' | 'happy'
+  type: CardTypeEnum; // This will now refer to the imported enum
   title: string;
   description: string;
   stage_month: number | null;

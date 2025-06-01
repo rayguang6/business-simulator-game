@@ -1,8 +1,10 @@
 import { PerspectiveUtils, WorldPosition } from '@/lib/game/perspective';
+import { CardTypeEnum } from '@/lib/enums';
 
 export interface RoadObject extends WorldPosition {
   id: string;
   type: 'card' | 'cash';
+  actualCardType?: CardTypeEnum;
   width: number;
   height: number;
   collected: boolean;
@@ -10,46 +12,66 @@ export interface RoadObject extends WorldPosition {
 
 export class RoadObjectsManager {
   private objects: RoadObject[] = [];
-  private images: Record<string, HTMLImageElement> = {};
-  private lastSpawnTime: number = 0;
-  private spawnInterval: number;
+  private images: Record<string, HTMLImageElement> = {}; // Will store images keyed by CardTypeEnum string or 'cash'
   private nextId: number = 0;
   private readonly MOVEMENT_SPEED = 0.08; // Consistent movement speed
   
-  constructor(spawnInterval = 2000) {
-    this.spawnInterval = spawnInterval;
+  constructor() {
     this.loadImages();
   }
 
   private loadImages(): void {
-    const cardImg = new Image();
-    cardImg.src = '/images/card.png';
-    this.images.card = cardImg;
+    // Load images for each card type
+    const card1Img = new Image();
+    card1Img.src = '/images/cards/card1.png'; // Assuming Opportunity
+    this.images[CardTypeEnum.opportunity] = card1Img;
 
+    const card2Img = new Image();
+    card2Img.src = '/images/cards/card2.png'; // Assuming Problem
+    this.images[CardTypeEnum.problem] = card2Img;
+
+    const card3Img = new Image();
+    card3Img.src = '/images/cards/card3.png'; // Assuming Market
+    this.images[CardTypeEnum.market] = card3Img;
+
+    const card4Img = new Image();
+    card4Img.src = '/images/cards/card4.png'; // Assuming Happy
+    this.images[CardTypeEnum.happy] = card4Img;
+
+    // Load cash image
     const cashImg = new Image();
     cashImg.src = '/images/cash.png';
-    this.images.cash = cashImg;
+    this.images.cash = cashImg; // Keep 'cash' as a distinct key for cash objects
   }
 
-  spawn(currentTime: number): void {
-    if (currentTime - this.lastSpawnTime < this.spawnInterval) return;
-    
-    const type: 'card' | 'cash' = Math.random() < 0.5 ? 'card' : 'cash';
-    
-    // Position exactly in the middle of the road
-    const x = 0; // 0 means center of the road
-    
+  public spawnCard(specificCardType: CardTypeEnum): void { // Ensure this signature matches what GameRunnerScene expects
+    const x = 0; 
     this.objects.push({
       id: `obj_${this.nextId++}`,
-      type,
+      type: 'card',
+      actualCardType: specificCardType, // Store the specific type
       x,
       z: PerspectiveUtils.MAX_DEPTH,
-      width: 128,  // Increased from 64
-      height: 128, // Increased from 64
+      width: 128, // Default width, actual draw width is handled in draw()
+      height: 128, // Default height, actual draw height is handled in draw()
       collected: false
     });
-    
-    this.lastSpawnTime = currentTime;
+    // console.log('RoadObjectManager: Spawned Card'); // Optional: for debugging
+  }
+
+  public spawnCash(): void {
+    const x = 0; // Position exactly in the middle of the road
+    this.objects.push({
+      id: `obj_${this.nextId++}`,
+      type: 'cash',
+      // no actualCardType for cash objects
+      x,
+      z: PerspectiveUtils.MAX_DEPTH,
+      width: 128,
+      height: 128,
+      collected: false
+    });
+    // console.log('RoadObjectManager: Spawned Cash'); // Optional: for debugging
   }
 
   update(deltaTime: number): void {
@@ -74,20 +96,33 @@ export class RoadObjectsManager {
 
     sorted.forEach(obj => {
       if (obj.collected) return;
-      const image = this.images[obj.type];
-      if (!image?.complete) return;
 
-      const { x, y, scale } = PerspectiveUtils.worldToScreen(
+      let image: HTMLImageElement | undefined;
+      let drawWidth = CASH_WIDTH * PerspectiveUtils.worldToScreen({ x: obj.x, z: obj.z }, width, height).scale * SCALE_MULTIPLIER;
+
+      if (obj.type === 'card' && obj.actualCardType) {
+        image = this.images[obj.actualCardType];
+        // Use CARD_WIDTH for cards, but calculate scale based on perspective first
+        const { scale } = PerspectiveUtils.worldToScreen({ x: obj.x, z: obj.z }, width, height);
+        drawWidth = CARD_WIDTH * scale * SCALE_MULTIPLIER;
+      } else if (obj.type === 'cash') {
+        image = this.images.cash; // Already using cash key
+        // For cash, width is already set based on CASH_WIDTH and scale
+      }
+
+      if (!image?.complete) {
+        // Optionally, draw a placeholder or log if image not ready/found
+        // console.warn(`Image not ready or found for object type: ${obj.type}, cardType: ${obj.actualCardType}`);
+        return;
+      }
+
+      const { x: screenX, y: screenY, scale } = PerspectiveUtils.worldToScreen(
         { x: obj.x, z: obj.z },
         width,
         height
       );
-
-      // Use different width for card and cash
-      let drawWidth = CASH_WIDTH * scale * SCALE_MULTIPLIER;
-      if (obj.type === 'card') {
-        drawWidth = CARD_WIDTH * scale * SCALE_MULTIPLIER;
-      }
+      
+      // Aspect ratio is based on the selected image
       const aspectRatio = image.naturalWidth / image.naturalHeight;
       const drawHeight = drawWidth / aspectRatio;
       const alpha = PerspectiveUtils.getDepthAlpha(obj.z, 8, 0.5);
@@ -97,8 +132,8 @@ export class RoadObjectsManager {
       // Draw shadow (ellipse under the object)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.ellipse(
-        x,
-        y + drawHeight * 0.4,
+        screenX,
+        screenY + drawHeight * 0.4,
         drawWidth * 0.4,
         drawHeight * 0.1,
         0, 0, Math.PI * 2
@@ -107,9 +142,9 @@ export class RoadObjectsManager {
 
       // Draw the image, centered at (x, y), with correct aspect ratio
       ctx.drawImage(
-        image,
-        x - drawWidth / 2,
-        y - drawHeight / 2,
+        image, // Use the selected image
+        screenX - drawWidth / 2,
+        screenY - drawHeight / 2,
         drawWidth,
         drawHeight
       );
@@ -138,5 +173,6 @@ export class RoadObjectsManager {
 
   clear(): void {
     this.objects = [];
+    // console.log('RoadObjectManager: Cleared objects'); // Optional: for debugging
   }
 }

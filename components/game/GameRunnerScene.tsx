@@ -1,9 +1,19 @@
 "use client";
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { CharacterSprite } from "@/lib/game/entities/CharacterSprite";
 import { BackgroundRenderer } from "@/lib/game/managers/BackgroundRenderer";
 import { EmojiDecorationManager } from "@/lib/game/managers/EmojiDecorationManager";
 import { RoadObjectsManager } from "@/lib/game/managers/RoadObjectManager";
+import { CardTypeEnum } from '@/lib/enums';
+
+// CardTypeEnum is globally available from lib/global.d.ts
+
+// Define handles to be exposed to the parent component (GameScreen)
+export interface GameRunnerSceneHandles {
+  spawnCard: (cardType: CardTypeEnum) => void;
+  spawnCash: () => void;
+  clearRoadObjects: () => void;
+}
 
 interface GameRunnerSceneProps {
   isPaused: boolean;
@@ -25,11 +35,12 @@ const defaultBackgroundConfig = {
   emojis: ["🌳", "🌴", "🌵", "🪨", "🌲", "🌿"],
 };
 
-const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({ 
+// Wrap component with forwardRef
+const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>(({ 
   isPaused, 
   backgroundConfig,
   onCollect 
-}) => {
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const characterRef = useRef<CharacterSprite | null>(null);
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null);
@@ -37,11 +48,22 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
   const roadObjectsRef = useRef<RoadObjectsManager | null>(null);
   const animationFrameRef = useRef<number>(0);
 
-  // Initialize managers only once
+  // Expose specific methods to the parent component using useImperativeHandle
+  useImperativeHandle(ref, () => ({
+    spawnCard: (cardType: CardTypeEnum) => {
+      roadObjectsRef.current?.spawnCard(cardType);
+    },
+    spawnCash: () => {
+      roadObjectsRef.current?.spawnCash();
+    },
+    clearRoadObjects: () => {
+      roadObjectsRef.current?.clear();
+    }
+  }));
+
   useEffect(() => {
     const config = backgroundConfig || defaultBackgroundConfig;
     
-    // Create managers if they don't exist
     if (!backgroundRendererRef.current) {
       backgroundRendererRef.current = new BackgroundRenderer(config);
     }
@@ -51,16 +73,15 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
     }
     
     if (!roadObjectsRef.current) {
-      roadObjectsRef.current = new RoadObjectsManager(1500);
+      // Update RoadObjectManager instantiation - no more spawnInterval argument
+      roadObjectsRef.current = new RoadObjectsManager(); 
     }
     
-    // Update background config if it changed
     if (backgroundConfig) {
       backgroundRendererRef.current.updateConfig(backgroundConfig);
     }
   }, [backgroundConfig]);
 
-  // Check collisions
   const checkCollisions = useCallback(() => {
     if (!characterRef.current || !roadObjectsRef.current) return;
     
@@ -68,7 +89,6 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
     const collectibles = roadObjectsRef.current.getCollectibleObjects();
     
     collectibles.forEach(obj => {
-      // Simple collision detection based on z-depth and x position
       if (obj.z < 0.5 && obj.z > 0 && Math.abs(obj.x) < 0.2) {
         roadObjectsRef.current!.collectObject(obj.id);
         onCollect?.(obj.type);
@@ -82,7 +102,6 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Initialize character
     if (!characterRef.current) {
       characterRef.current = new CharacterSprite({
         src: "/sprites/hero.png",
@@ -109,15 +128,12 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
     function gameLoop() {
       if (!canvas || !ctx) return;
       
-      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw background
       if (backgroundRendererRef.current) {
         backgroundRendererRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
-      // Update and draw emoji decorations
       if (emojiManagerRef.current) {
         const currentTime = Date.now();
         if (!isPaused) {
@@ -127,22 +143,15 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
         emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
-      // Update and draw road objects
       if (roadObjectsRef.current) {
-        const currentTime = Date.now();
-        if (!isPaused) {
-          roadObjectsRef.current.spawn(currentTime);
-        }
         roadObjectsRef.current.update(16);
         roadObjectsRef.current.draw(ctx, canvas.width, canvas.height);
         
-        // Check collisions
         if (!isPaused) {
           checkCollisions();
         }
       }
       
-      // Update and draw character
       if (characterRef.current) {
         if (!isPaused) {
           characterRef.current.update();
@@ -161,7 +170,7 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPaused, checkCollisions]);
+  }, [isPaused, checkCollisions, backgroundConfig]);
 
   return (
     <canvas
@@ -174,6 +183,6 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({
       }}
     />
   );
-};
+});
 
 export default GameRunnerScene;
