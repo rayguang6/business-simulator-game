@@ -2,6 +2,8 @@
 import GameRunnerScene, { GameRunnerSceneHandles } from './GameRunnerScene';
 import React, { useState, useEffect, useRef } from 'react';
 import { CardTypeEnum } from '@/lib/enums';
+import GameHUD from './GameHUD';
+import { useRouter } from 'next/navigation';
 
 // CardTypeEnum, Industry, Card are globally available from lib/global.d.ts
 
@@ -48,8 +50,15 @@ interface GameScreenProps {
 type MonthPhase = 'awaitingFirstCard' | 'awaitingSecondCard' | 'awaitingCash';
 
 const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   
+  // State for HUD values
+  const [cash, setCash] = useState(0); // Initialize with 0 or a default
+  const [revenue, setRevenue] = useState(0);
+  const [expenses, setExpenses] = useState(0);
+  const [customerRating, setCustomerRating] = useState(75); // Default customer rating
+
   const [month, setMonth] = useState(() => getCurrentMonthYear().month);
   const [year, setYear] = useState(() => getCurrentMonthYear().year);
   
@@ -61,11 +70,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    // Initialize HUD state based on the industry prop
+    // Ensure your Industry type has startingCash, startingRevenue, startingExpenses
+    setCash(industry.startingCash || 0);
+    setRevenue(industry.startingRevenue || 0); 
+    setExpenses(industry.startingExpenses || 0);
+    // setCustomerRating(industry.startingCustomerRating || 75); // If you add this to Industry type
+  }, [industry]); // Effect depends on the industry prop
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
     cash: '/audio/cash.mp3',
+  };
+
+  const handleBackButtonClick = () => {
+    if (window.confirm("Are you sure you want to quit the game and return to the main page?")) {
+      router.push('/');
+    }
   };
 
   const spawnNewCard = () => {
@@ -130,9 +151,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     } else if (type === 'cash') {
       if (monthPhase === 'awaitingCash') {
         console.log("Cash collected. Advancing month.");
+        // Update cash based on PNL for the month (temporary)
+        setCash(prevCash => prevCash + revenue - expenses);
+        // Potentially adjust customer rating (example)
+        // setCustomerRating(prev => Math.max(0, Math.min(100, prev + Math.floor(Math.random()*3)-1)));
+
         setMonth(prevMonth => {
           if (prevMonth === 11) { 
-            setYear(prevYear => prevYear + 1); 
+            setYear(prevYear => prevYear + 1);
             return 0; 
           } else {
             return prevMonth + 1;
@@ -143,24 +169,22 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
   
   if (!isMounted) {
-    return null; // Or a static loading placeholder
+    return <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', textAlign: 'center', padding: '10px', backgroundColor: '#333', color: 'white', zIndex: 2000 }}>Loading Game...</div>;
   }
 
   return (
     <div>
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        padding: '8px 16px',
-        borderRadius: 8,
-        fontWeight: 'bold',
-        zIndex: 10,
-        color: '#fff',
-        background: 'rgba(0,0,0,0.5)'
-      }}>
-        {formatMonthYear(month, year)} | Cards This Month: {cardsCollectedCount}/2
-      </div>
+      <GameHUD 
+        cash={cash}
+        revenue={revenue}
+        expenses={expenses}
+        customerRating={customerRating}
+        month={month}
+        year={year}
+        industryName={industry.name}
+        cardsCollectedCount={cardsCollectedCount}
+        onBackButtonClick={handleBackButtonClick}
+      />
       <GameRunnerScene ref={gameRunnerSceneRef} isPaused={false} onCollect={handleCollect} />
     </div>
   );
