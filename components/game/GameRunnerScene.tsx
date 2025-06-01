@@ -1,25 +1,80 @@
 "use client";
-import React, { useRef, useEffect } from "react";
-import { CharacterSprite } from "./CharacterSprite";
-import { drawBackground, BackgroundConfig, BackgroundEmojiManager } from "./GameBackground";
+import React, { useRef, useEffect, useCallback } from "react";
+import { CharacterSprite } from "@/lib/game/entities/CharacterSprite";
+import { BackgroundRenderer } from "@/lib/game/managers/BackgroundRenderer";
+import { EmojiDecorationManager } from "@/lib/game/managers/EmojiDecorationManager";
+import { RoadObjectsManager } from "@/lib/game/managers/RoadObjectManager";
 
 interface GameRunnerSceneProps {
   isPaused: boolean;
-  backgroundConfig?: BackgroundConfig;
+  backgroundConfig?: {
+    skyTop?: string;
+    skyBottom?: string;
+    ground?: string;
+    road?: string;
+    emojis?: string[];
+  };
+  onCollect?: (type: 'card' | 'cash') => void;
 }
 
-const defaultBackgroundConfig: BackgroundConfig = {
+const defaultBackgroundConfig = {
   skyTop: "#4A90E2",
   skyBottom: "#7BB3F4",
   ground: "#1a1a2e",
   road: "#2C3E50",
-  emojis: ["🌳", "🌴", "🌵", "🪨", "🌲", "🌿"], // Trees and nature for roadside
+  emojis: ["🌳", "🌴", "🌵", "🪨", "🌲", "🌿"],
 };
 
-const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({ isPaused, backgroundConfig }) => {
+const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({ 
+  isPaused, 
+  backgroundConfig,
+  onCollect 
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const characterRef = useRef<CharacterSprite | null>(null);
-  const emojiManagerRef = useRef<BackgroundEmojiManager | null>(null);
+  const backgroundRendererRef = useRef<BackgroundRenderer | null>(null);
+  const emojiManagerRef = useRef<EmojiDecorationManager | null>(null);
+  const roadObjectsRef = useRef<RoadObjectsManager | null>(null);
+  const animationFrameRef = useRef<number>(0);
+
+  // Initialize managers only once
+  useEffect(() => {
+    const config = backgroundConfig || defaultBackgroundConfig;
+    
+    // Create managers if they don't exist
+    if (!backgroundRendererRef.current) {
+      backgroundRendererRef.current = new BackgroundRenderer(config);
+    }
+    
+    if (!emojiManagerRef.current && config.emojis) {
+      emojiManagerRef.current = new EmojiDecorationManager(config.emojis, 400);
+    }
+    
+    if (!roadObjectsRef.current) {
+      roadObjectsRef.current = new RoadObjectsManager(1500);
+    }
+    
+    // Update background config if it changed
+    if (backgroundConfig) {
+      backgroundRendererRef.current.updateConfig(backgroundConfig);
+    }
+  }, [backgroundConfig]);
+
+  // Check collisions
+  const checkCollisions = useCallback(() => {
+    if (!characterRef.current || !roadObjectsRef.current) return;
+    
+    const character = characterRef.current;
+    const collectibles = roadObjectsRef.current.getCollectibleObjects();
+    
+    collectibles.forEach(obj => {
+      // Simple collision detection based on z-depth and x position
+      if (obj.z < 0.5 && obj.z > 0 && Math.abs(obj.x) < 0.2) {
+        roadObjectsRef.current!.collectObject(obj.id);
+        onCollect?.(obj.type);
+      }
+    });
+  }, [onCollect]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -27,19 +82,16 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({ isPaused, backgroundC
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Initialize character
     if (!characterRef.current) {
       characterRef.current = new CharacterSprite({
         src: "/sprites/hero.png",
         x: window.innerWidth / 2,
         y: window.innerHeight - 50,
         animationFrameLimit: 8,
-        scale: 3,
+        scale: 6,
       });
     }
-
-    // Create or update emoji manager
-    const config = backgroundConfig || defaultBackgroundConfig;
-    emojiManagerRef.current = new BackgroundEmojiManager(config, 400); // Faster spawn rate
 
     function resize(): void {
       if (!canvas) return;
@@ -50,53 +102,66 @@ const GameRunnerScene: React.FC<GameRunnerSceneProps> = ({ isPaused, backgroundC
         characterRef.current.y = window.innerHeight - 50;
       }
     }
+    
     resize();
     window.addEventListener("resize", resize);
 
-    let animationId: number;
-
-    function draw() {
+    function gameLoop() {
       if (!canvas || !ctx) return;
+      
+      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       // Draw background
-      drawBackground(
-        ctx,
-        canvas.width,
-        canvas.height,
-        config
-      );
+      if (backgroundRendererRef.current) {
+        backgroundRendererRef.current.draw(ctx, canvas.width, canvas.height);
+      }
       
-      // Emoji decorations
+      // Update and draw emoji decorations
       if (emojiManagerRef.current) {
-        // Only spawn new emojis when not paused
+        const currentTime = Date.now();
         if (!isPaused) {
-          emojiManagerRef.current.spawnIfNeeded();
+          emojiManagerRef.current.spawn(currentTime);
         }
-        
-        // Always update movement (even when paused for smooth visuals)
-        emojiManagerRef.current.update();
+        emojiManagerRef.current.update(16);
         emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
-      // Character animation
-      if (!isPaused && characterRef.current) {
-        characterRef.current.update();
+      // Update and draw road objects
+      if (roadObjectsRef.current) {
+        const currentTime = Date.now();
+        if (!isPaused) {
+          roadObjectsRef.current.spawn(currentTime);
+        }
+        roadObjectsRef.current.update(16);
+        roadObjectsRef.current.draw(ctx, canvas.width, canvas.height);
+        
+        // Check collisions
+        if (!isPaused) {
+          checkCollisions();
+        }
       }
+      
+      // Update and draw character
       if (characterRef.current) {
+        if (!isPaused) {
+          characterRef.current.update();
+        }
         characterRef.current.draw(ctx);
       }
       
-      animationId = requestAnimationFrame(draw);
+      animationFrameRef.current = requestAnimationFrame(gameLoop);
     }
 
-    animationId = requestAnimationFrame(draw);
+    animationFrameRef.current = requestAnimationFrame(gameLoop);
 
     return () => {
       window.removeEventListener("resize", resize);
-      cancelAnimationFrame(animationId);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
-  }, [isPaused, backgroundConfig]);
+  }, [isPaused, checkCollisions]);
 
   return (
     <canvas
