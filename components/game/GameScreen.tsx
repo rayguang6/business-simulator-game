@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CardTypeEnum } from '@/lib/enums';
 import GameHUD from './GameHUD';
 import { useRouter } from 'next/navigation';
+import { RoadObject } from '@/lib/game/managers/RoadObjectManager';
+import Card from '@/components/game/Card';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // CardTypeEnum, Industry, Card are globally available from lib/global.d.ts
 
@@ -44,10 +47,10 @@ const getRandomCardType = (): CardTypeEnum => {
 
 interface GameScreenProps {
   industry: Industry; 
-  cards: Card[]; // This prop contains the available cards for the game
+  cards: Card[]; // This should contain the actual card data for the game
 }
 
-type MonthPhase = 'awaitingFirstCard' | 'awaitingSecondCard' | 'awaitingCash';
+type MonthPhase = 'awaitingFirstCard' | 'awaitingSecondCard' | 'awaitingCash' | 'cardDecision';
 
 const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const router = useRouter();
@@ -64,7 +67,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   
   const [monthPhase, setMonthPhase] = useState<MonthPhase>('awaitingFirstCard');
   const [cardsCollectedCount, setCardsCollectedCount] = useState(0); 
-  const [currentDeckIndex, setCurrentDeckIndex] = useState(0); // To cycle through props.cards if needed
+  const [currentDisplayCard, setCurrentDisplayCard] = useState<Card | null>(null);
 
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
 
@@ -90,21 +93,65 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const spawnNewCard = () => {
-    if (!isMounted) return; 
-    const cardTypeToSpawn = getRandomCardType();
-    
-    // For logging: find a card from props.cards that matches this type
-    // This is a simple find; later we might want a more sophisticated deck/draw mechanic
-    const matchingCardFromDeck = cards.find(card => card.type === cardTypeToSpawn);
+    if (!isMounted || !cards || cards.length === 0) {
+      console.error("GameScreen: Cannot spawn card. Not mounted or no cards available in props.");
+      return;
+    } 
 
-    console.log(`Attempting to spawn card of type: ${cardTypeToSpawn}`);
-    if (matchingCardFromDeck) {
-      console.log(`  Associated with deck card: ID=${matchingCardFromDeck.id}, Title='${matchingCardFromDeck.title}'`);
+    const cardTypeToSpawn = getRandomCardType();
+    const currentGameMonthOneIndexed = month + 1;
+
+    console.log(`GameScreen: ----- New Card Spawn Attempt -----`);
+    console.log(`GameScreen: Target type: ${cardTypeToSpawn}, Current month (1-idx): ${currentGameMonthOneIndexed}, Current cash: $${cash}`);
+    console.log(`GameScreen: Total cards in deck: ${cards.length}`);
+
+    // Primary filter: by type and conditions
+    const primaryEligibleCards = cards.filter(card => {
+      const typeMatch = card.type === cardTypeToSpawn;
+      const stageMatch = (card.stage_month === null || currentGameMonthOneIndexed >= card.stage_month);
+      const minCashMatch = (card.min_cash === null || cash >= card.min_cash);
+      const maxCashMatch = (card.max_cash === null || cash <= card.max_cash);
+      // Detailed log for each card evaluation (can be verbose, remove if too noisy after testing)
+      // console.log(`  - Card: ${card.title} (Type: ${card.type}) -> TypeMatch: ${typeMatch}, Stage: ${stageMatch} (Need: ${card.stage_month}), MinCash: ${minCashMatch} (Need: ${card.min_cash}), MaxCash: ${maxCashMatch} (Need: ${card.max_cash})`);
+      return typeMatch && stageMatch && minCashMatch && maxCashMatch;
+    });
+    console.log(`GameScreen: Found ${primaryEligibleCards.length} cards matching target type AND conditions.`);
+    primaryEligibleCards.forEach(c => console.log(`  - Eligible (Primary): ${c.title} (Type: ${c.type}, Stage: ${c.stage_month}, MinCash: ${c.min_cash}, MaxCash: ${c.max_cash})`));
+
+    let specificCardToSpawn: Card | undefined = undefined;
+    let spawnStrategy = "primary";
+
+    if (primaryEligibleCards.length > 0) {
+      specificCardToSpawn = primaryEligibleCards[Math.floor(Math.random() * primaryEligibleCards.length)];
+      // console.log(`GameScreen: Selected from primary eligible: ${specificCardToSpawn.title}`); // Already logged selection below
     } else {
-      console.log(`  No card in the provided deck matches type: ${cardTypeToSpawn}. Spawning with type for image only.`);
+      console.warn(`GameScreen: No eligible cards for target type ${cardTypeToSpawn}. Attempting fallback (any type, matching conditions).`);
+      spawnStrategy = "fallback";
+      
+      const fallbackEligibleCards = cards.filter(card => { 
+        const stageMatch = (card.stage_month === null || currentGameMonthOneIndexed >= card.stage_month);
+        const minCashMatch = (card.min_cash === null || cash >= card.min_cash);
+        const maxCashMatch = (card.max_cash === null || cash <= card.max_cash);
+        return stageMatch && minCashMatch && maxCashMatch;
+      });
+      console.log(`GameScreen: Found ${fallbackEligibleCards.length} cards matching conditions for fallback.`);
+      fallbackEligibleCards.forEach(c => console.log(`  - Eligible (Fallback): ${c.title} (Type: ${c.type}, Stage: ${c.stage_month}, MinCash: ${c.min_cash}, MaxCash: ${c.max_cash})`));
+
+      if (fallbackEligibleCards.length > 0) {
+        specificCardToSpawn = fallbackEligibleCards[Math.floor(Math.random() * fallbackEligibleCards.length)];
+      } else {
+        console.error("GameScreen: Fallback failed. No cards meet any conditions.");
+        return;
+      }
     }
-    
-    gameRunnerSceneRef.current?.spawnCard(cardTypeToSpawn);
+
+    if (!specificCardToSpawn) {
+      console.error("GameScreen: Critical error - specificCardToSpawn is undefined. No card spawned.");
+      return; 
+    }
+
+    console.log(`GameScreen: Spawning card (Strategy: ${spawnStrategy}) - ID: ${specificCardToSpawn.id}, Title: '${specificCardToSpawn.title}', Actual Type: ${specificCardToSpawn.type}`);
+    gameRunnerSceneRef.current?.spawnCard(specificCardToSpawn.type, specificCardToSpawn.id);
   };
 
   const startMonthCycle = (currentMonth: number, currentYear: number) => {
@@ -124,10 +171,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, year, isMounted]); 
 
-  const handleCollect = (type: 'card' | 'cash') => {
+  const handleCollect = (collectedObject: RoadObject) => {
     if (!isMounted) return; 
 
-    const audioSrc = audioMap[type];
+    const audioSrc = audioMap[collectedObject.type];
     if (audioSrc) {
       const audio = new Audio(audioSrc);
       audio.volume = 0.7;
@@ -137,18 +184,21 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       });
     }
 
-    if (type === 'card') {
-      setCardsCollectedCount(prev => prev + 1);
-      if (monthPhase === 'awaitingFirstCard') {
-        setMonthPhase('awaitingSecondCard');
-        spawnNewCard(); 
-        console.log("First card collected. Phase: awaitingSecondCard.");
-      } else if (monthPhase === 'awaitingSecondCard') {
-        setMonthPhase('awaitingCash');
-        gameRunnerSceneRef.current?.spawnCash();
-        console.log("Second card collected. Phase: awaitingCash. Spawned cash.");
+    if (collectedObject.type === 'card') {
+      console.log("Collected a card object. Specific Card ID from RoadObject:", collectedObject.cardId);
+      // Find the actual card data from props.cards using the cardId
+      const actualCardData = cards.find(card => card.id === collectedObject.cardId);
+      if (actualCardData) {
+        console.log("Actual Card Data collected:", actualCardData.title, actualCardData);
+        // TODO: Next step - display this card's details / choices
+        setCurrentDisplayCard(actualCardData);
+        setMonthPhase('cardDecision');
+      } else {
+        console.warn("Collected card object, but could not find matching card data in props.cards for ID:", collectedObject.cardId);
       }
-    } else if (type === 'cash') {
+
+      setCardsCollectedCount(prev => prev + 1);
+    } else if (collectedObject.type === 'cash') {
       if (monthPhase === 'awaitingCash') {
         console.log("Cash collected. Advancing month.");
         // Update cash based on PNL for the month (temporary)
@@ -172,6 +222,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     return <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', textAlign: 'center', padding: '10px', backgroundColor: '#333', color: 'white', zIndex: 2000 }}>Loading Game...</div>;
   }
 
+  const handleCardDecision = (choice: CardChoice) => {
+    console.log("Card decision made:", choice.label, choice);
+    // TODO: Apply effects of the choice
+
+    setCurrentDisplayCard(null);
+
+    if (cardsCollectedCount === 1) {
+      setMonthPhase('awaitingSecondCard');
+      spawnNewCard();
+      console.log("Decision made for first card. Phase: awaitingSecondCard. Spawning second card.");
+    } else if (cardsCollectedCount === 2) {
+      setMonthPhase('awaitingCash');
+      gameRunnerSceneRef.current?.spawnCash();
+      console.log("Decision made for second card. Phase: awaitingCash. Spawned cash.");
+    }
+  };
+
   return (
     <div>
       <GameHUD 
@@ -185,7 +252,38 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
         cardsCollectedCount={cardsCollectedCount}
         onBackButtonClick={handleBackButtonClick}
       />
-      <GameRunnerScene ref={gameRunnerSceneRef} isPaused={false} onCollect={handleCollect} />
+      <GameRunnerScene ref={gameRunnerSceneRef} isPaused={!!currentDisplayCard} onCollect={handleCollect} />
+
+      <AnimatePresence>
+        {currentDisplayCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+          >
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {currentDisplayCard && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            onClick={(e) => e.stopPropagation()}
+            className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden"
+          >
+            <div className="overflow-y-auto p-3 sm:p-4 flex-grow">
+              <Card 
+                card={currentDisplayCard} 
+                onDecision={handleCardDecision}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

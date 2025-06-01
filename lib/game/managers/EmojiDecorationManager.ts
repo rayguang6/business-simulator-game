@@ -52,8 +52,8 @@ export class EmojiDecorationManager {
     //    That way, at the chosen depth (z), the emoji will be off‐road
     //    but not so far off‐screen that it never shows.
     // ─────────────────────────────────────────────────────
-    const sideMargin = 6;   // just outside the road’s half‐width (0.5)
-    const sideMax    = 10;   // how far to the side we allow
+    const sideMargin = 8;   // just outside the road’s half‐width (0.5)
+    const sideMax    = 16;   // how far to the side we allow
     let x: number;
 
     if (Math.random() < 0.5) {

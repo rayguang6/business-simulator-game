@@ -5,6 +5,7 @@ export interface RoadObject extends WorldPosition {
   id: string;
   type: 'card' | 'cash';
   actualCardType?: CardTypeEnum;
+  cardId?: string;
   width: number;
   height: number;
   collected: boolean;
@@ -44,12 +45,13 @@ export class RoadObjectsManager {
     this.images.cash = cashImg; // Keep 'cash' as a distinct key for cash objects
   }
 
-  public spawnCard(specificCardType: CardTypeEnum): void { // Ensure this signature matches what GameRunnerScene expects
+  public spawnCard(specificCardType: CardTypeEnum, cardId: string): void {
     const x = 0; 
     this.objects.push({
       id: `obj_${this.nextId++}`,
       type: 'card',
-      actualCardType: specificCardType, // Store the specific type
+      actualCardType: specificCardType,
+      cardId: cardId,
       x,
       z: PerspectiveUtils.MAX_DEPTH,
       width: 128, // Default width, actual draw width is handled in draw()

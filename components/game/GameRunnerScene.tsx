@@ -3,14 +3,14 @@ import React, { useRef, useEffect, useCallback, forwardRef, useImperativeHandle 
 import { CharacterSprite } from "@/lib/game/entities/CharacterSprite";
 import { BackgroundRenderer } from "@/lib/game/managers/BackgroundRenderer";
 import { EmojiDecorationManager } from "@/lib/game/managers/EmojiDecorationManager";
-import { RoadObjectsManager } from "@/lib/game/managers/RoadObjectManager";
+import { RoadObjectsManager, RoadObject } from "@/lib/game/managers/RoadObjectManager";
 import { CardTypeEnum } from '@/lib/enums';
 
 // CardTypeEnum is globally available from lib/global.d.ts
 
 // Define handles to be exposed to the parent component (GameScreen)
 export interface GameRunnerSceneHandles {
-  spawnCard: (cardType: CardTypeEnum) => void;
+  spawnCard: (cardType: CardTypeEnum, cardId: string) => void;
   spawnCash: () => void;
   clearRoadObjects: () => void;
 }
@@ -24,7 +24,7 @@ interface GameRunnerSceneProps {
     road?: string;
     emojis?: string[];
   };
-  onCollect?: (type: 'card' | 'cash') => void;
+  onCollect?: (collectedObject: RoadObject) => void;
 }
 
 const defaultBackgroundConfig = {
@@ -50,8 +50,8 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
 
   // Expose specific methods to the parent component using useImperativeHandle
   useImperativeHandle(ref, () => ({
-    spawnCard: (cardType: CardTypeEnum) => {
-      roadObjectsRef.current?.spawnCard(cardType);
+    spawnCard: (cardType: CardTypeEnum, cardId: string) => {
+      roadObjectsRef.current?.spawnCard(cardType, cardId);
     },
     spawnCash: () => {
       roadObjectsRef.current?.spawnCash();
@@ -91,7 +91,7 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
     collectibles.forEach(obj => {
       if (obj.z < 0.5 && obj.z > 0 && Math.abs(obj.x) < 0.2) {
         roadObjectsRef.current!.collectObject(obj.id);
-        onCollect?.(obj.type);
+        onCollect?.(obj);
       }
     });
   }, [onCollect]);
@@ -138,18 +138,17 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
         const currentTime = Date.now();
         if (!isPaused) {
           emojiManagerRef.current.spawn(currentTime);
+          emojiManagerRef.current.update(16);
         }
-        emojiManagerRef.current.update(16);
         emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
       if (roadObjectsRef.current) {
-        roadObjectsRef.current.update(16);
-        roadObjectsRef.current.draw(ctx, canvas.width, canvas.height);
-        
         if (!isPaused) {
+          roadObjectsRef.current.update(16);
           checkCollisions();
         }
+        roadObjectsRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
       if (characterRef.current) {
