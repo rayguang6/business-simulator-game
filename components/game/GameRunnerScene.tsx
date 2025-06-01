@@ -25,6 +25,7 @@ interface GameRunnerSceneProps {
     emojis?: string[];
   };
   onCollect?: (collectedObject: RoadObject) => void;
+  disableInteraction?: boolean;
 }
 
 const defaultBackgroundConfig = {
@@ -39,7 +40,8 @@ const defaultBackgroundConfig = {
 const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>(({ 
   isPaused, 
   backgroundConfig,
-  onCollect 
+  onCollect,
+  disableInteraction
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const characterRef = useRef<CharacterSprite | null>(null);
@@ -146,7 +148,9 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
       if (roadObjectsRef.current) {
         if (!isPaused) {
           roadObjectsRef.current.update(16);
-          checkCollisions();
+          if (!disableInteraction) {
+            checkCollisions();
+          }
         }
         roadObjectsRef.current.draw(ctx, canvas.width, canvas.height);
       }
@@ -169,7 +173,7 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPaused, checkCollisions, backgroundConfig]);
+  }, [isPaused, checkCollisions, backgroundConfig, disableInteraction]);
 
   return (
     <canvas

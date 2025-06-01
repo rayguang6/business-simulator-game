@@ -63,15 +63,17 @@ interface GameScreenProps {
 }
 
 type MonthPhase = 'awaitingFirstCard' | 'awaitingSecondCard' | 'awaitingCash' | 'cardDecision';
+type GameOverStatus = 'win' | 'lose' | null; // New type for game over
 
 const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false); // Track when initial setup is complete
   
-  // State for HUD values
-  const [cash, setCash] = useState(0); // Initialize with 0 or a default
-  const [revenue, setRevenue] = useState(0);
-  const [expenses, setExpenses] = useState(0);
+  // State for HUD values - Initialize with industry values immediately
+  const [cash, setCash] = useState(() => industry.startingCash || 0);
+  const [revenue, setRevenue] = useState(() => industry.startingRevenue || 0);
+  const [expenses, setExpenses] = useState(() => industry.startingExpenses || 0);
   const [customerRating, setCustomerRating] = useState(75); // Default customer rating
 
   const [month, setMonth] = useState(() => getCurrentMonthYear().month);
@@ -80,19 +82,20 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [monthPhase, setMonthPhase] = useState<MonthPhase>('awaitingFirstCard');
   const [cardsCollectedCount, setCardsCollectedCount] = useState(0); 
   const [currentDisplayCard, setCurrentDisplayCard] = useState<Card | null>(null);
-  const [effectAnimations, setEffectAnimations] = useState<EffectAnimationItem[]>([]); // New state for animations
+  const [effectAnimations, setEffectAnimations] = useState<EffectAnimationItem[]>([]);
+  const [gameOverStatus, setGameOverStatus] = useState<GameOverStatus>(null); // New state for game over
 
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
 
   useEffect(() => {
     setIsMounted(true);
-    // Initialize HUD state based on the industry prop
-    // Ensure your Industry type has startingCash, startingRevenue, startingExpenses
+    // Ensure values are synchronized with industry prop
     setCash(industry.startingCash || 0);
     setRevenue(industry.startingRevenue || 0); 
     setExpenses(industry.startingExpenses || 0);
-    // setCustomerRating(industry.startingCustomerRating || 75); // If you add this to Industry type
-  }, [industry]); // Effect depends on the industry prop
+    // Mark as initialized after all state updates
+    setIsInitialized(true);
+  }, [industry]);
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
@@ -100,14 +103,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const handleBackButtonClick = () => {
+    if (gameOverStatus) { // If game is over, just go back
+        router.push('/');
+        return;
+    }
     if (window.confirm("Are you sure you want to quit the game and return to the main page?")) {
       router.push('/');
     }
   };
 
   const spawnNewCard = () => {
-    if (!isMounted || !cards || cards.length === 0) {
-      console.error("GameScreen: Cannot spawn card. Not mounted or no cards available in props.");
+    if (!isMounted || !cards || cards.length === 0 || gameOverStatus) { // Halt if game over
+      console.error("GameScreen: Cannot spawn card. Not mounted, no cards, or game over.");
       return;
     } 
 
@@ -117,6 +124,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     console.log(`GameScreen: ----- New Card Spawn Attempt -----`);
     console.log(`GameScreen: Target type: ${cardTypeToSpawn}, Current month (1-idx): ${currentGameMonthOneIndexed}, Current cash: $${cash}`);
     console.log(`GameScreen: Total cards in deck: ${cards.length}`);
+    console.log(`GameScreen: Industry starting cash: ${industry.startingCash}, Current isInitialized: ${isInitialized}`);
 
     // Primary filter: by type and conditions
     const primaryEligibleCards = cards.filter(card => {
@@ -124,8 +132,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       const stageMatch = (card.stage_month === null || currentGameMonthOneIndexed >= card.stage_month);
       const minCashMatch = (card.min_cash === null || cash >= card.min_cash);
       const maxCashMatch = (card.max_cash === null || cash <= card.max_cash);
-      // Detailed log for each card evaluation (can be verbose, remove if too noisy after testing)
-      // console.log(`  - Card: ${card.title} (Type: ${card.type}) -> TypeMatch: ${typeMatch}, Stage: ${stageMatch} (Need: ${card.stage_month}), MinCash: ${minCashMatch} (Need: ${card.min_cash}), MaxCash: ${maxCashMatch} (Need: ${card.max_cash})`);
+      // console.log(`  - Card Eval (Primary): ${card.id} - ${card.title.substring(0,20)}... | Type: ${card.type}(${typeMatch}) | Stage: ${card.stage_month}(${stageMatch}) | MinCash: ${card.min_cash}(${minCashMatch}) | MaxCash: ${card.max_cash}(${maxCashMatch}) | Result: ${typeMatch && stageMatch && minCashMatch && maxCashMatch}`);
       return typeMatch && stageMatch && minCashMatch && maxCashMatch;
     });
     console.log(`GameScreen: Found ${primaryEligibleCards.length} cards matching target type AND conditions.`);
@@ -136,7 +143,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
     if (primaryEligibleCards.length > 0) {
       specificCardToSpawn = primaryEligibleCards[Math.floor(Math.random() * primaryEligibleCards.length)];
-      // console.log(`GameScreen: Selected from primary eligible: ${specificCardToSpawn.title}`); // Already logged selection below
     } else {
       console.warn(`GameScreen: No eligible cards for target type ${cardTypeToSpawn}. Attempting fallback (any type, matching conditions).`);
       spawnStrategy = "fallback";
@@ -153,8 +159,28 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       if (fallbackEligibleCards.length > 0) {
         specificCardToSpawn = fallbackEligibleCards[Math.floor(Math.random() * fallbackEligibleCards.length)];
       } else {
-        console.error("GameScreen: Fallback failed. No cards meet any conditions.");
-        return;
+        console.warn("GameScreen: Fallback failed. Attempting ultimate fallback - any card with no min_cash or min_cash <= current cash.");
+        spawnStrategy = "ultimate";
+        
+        // Ultimate fallback: find cards with either no min_cash requirement or very low min_cash
+        const ultimateEligibleCards = cards.filter(card => {
+          const hasNoMinCash = card.min_cash === null || card.min_cash === undefined;
+          const hasLowMinCash = card.min_cash !== null && card.min_cash <= cash;
+          const stageMatch = (card.stage_month === null || currentGameMonthOneIndexed >= card.stage_month);
+          return stageMatch && (hasNoMinCash || hasLowMinCash);
+        });
+        
+        console.log(`GameScreen: Found ${ultimateEligibleCards.length} cards for ultimate fallback.`);
+        ultimateEligibleCards.forEach(c => console.log(`  - Eligible (Ultimate): ${c.title} (Type: ${c.type}, Stage: ${c.stage_month}, MinCash: ${c.min_cash}, MaxCash: ${c.max_cash})`));
+        
+        if (ultimateEligibleCards.length > 0) {
+          specificCardToSpawn = ultimateEligibleCards[Math.floor(Math.random() * ultimateEligibleCards.length)];
+        } else {
+          // Absolute last resort: just pick the first card
+          console.error("GameScreen: All fallbacks failed. Using first available card as last resort.");
+          specificCardToSpawn = cards[0];
+          spawnStrategy = "emergency";
+        }
       }
     }
 
@@ -168,24 +194,26 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const startMonthCycle = (currentMonth: number, currentYear: number) => {
+    if (gameOverStatus) return; // Halt if game over
     console.log(`Starting new month: ${formatMonthYear(currentMonth, currentYear)}, Phase: awaitingFirstCard`);
     gameRunnerSceneRef.current?.clearRoadObjects();
     setMonthPhase('awaitingFirstCard');
     setCardsCollectedCount(0);
+    // setEffectAnimations([]); // TEMPORARILY COMMENTED OUT FOR TESTING PNL ANIMATION
     if (isMounted) { 
       spawnNewCard(); 
     }
   };
 
   useEffect(() => {
-    if (isMounted) { 
+    // Only start the game cycle when everything is properly initialized
+    if (isMounted && isInitialized && !gameOverStatus) {
       startMonthCycle(month, year);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, year, isMounted]); 
+  }, [month, year, isMounted, isInitialized, gameOverStatus]);
 
   const handleCollect = (collectedObject: RoadObject) => {
-    if (!isMounted) return; 
+    if (!isMounted || gameOverStatus) return; // Halt if game over
 
     const audioSrc = audioMap[collectedObject.type];
     if (audioSrc) {
@@ -199,6 +227,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
     if (collectedObject.type === 'card') {
       console.log("Collected a card object. Specific Card ID from RoadObject:", collectedObject.cardId);
+      setEffectAnimations([]); // Force clear animations when a card object is collected
       // Find the actual card data from props.cards using the cardId
       const actualCardData = cards.find(card => card.id === collectedObject.cardId);
       if (actualCardData) {
@@ -213,11 +242,42 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       setCardsCollectedCount(prev => prev + 1);
     } else if (collectedObject.type === 'cash') {
       if (monthPhase === 'awaitingCash') {
-        console.log("Cash collected. Advancing month.");
-        // Update cash based on PNL for the month (temporary)
-        setCash(prevCash => prevCash + revenue - expenses);
-        // Potentially adjust customer rating (example)
-        // setCustomerRating(prev => Math.max(0, Math.min(100, prev + Math.floor(Math.random()*3)-1)));
+        console.log("Cash collected. Calculating PNL and advancing month.");
+        
+        const pnlForMonth = revenue - expenses;
+        let updatedCash = cash + pnlForMonth;
+
+        // Prepare animation for PNL if it's non-zero
+        if (pnlForMonth !== 0) {
+          const animationId = Date.now().toString() + Math.random().toString();
+          const pnlAnimation: EffectAnimationItem = {
+            id: animationId,
+            metric: 'cash',
+            value: pnlForMonth,
+            isPercent: false,
+          };
+          setEffectAnimations([pnlAnimation]); // Show only this PNL animation
+        } else {
+          // If PNL is zero, ensure no old cash animations are lingering from card choices
+          setEffectAnimations(prevAnims => prevAnims.filter(anim => anim.metric !== 'cash'));
+        }
+
+        // Check for bankruptcy
+        if (updatedCash <= 0) {
+            setCash(0); // Set cash to 0 for display
+            setGameOverStatus('lose');
+            console.log("GAME OVER: Bankrupt from month-end PNL!");
+            return; 
+        }
+        // Check for win condition (unlikely here, but good for completeness if PNL is massive)
+        else if (updatedCash >= 100000) {
+            setCash(updatedCash);
+            setGameOverStatus('win');
+            console.log("YOU WIN! Reached $100,000 cash from month-end PNL.");
+            return;
+        } else {
+             setCash(updatedCash); // Apply PNL to cash
+        }
 
         setMonth(prevMonth => {
           if (prevMonth === 11) { 
@@ -266,7 +326,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
             ? getRandomInRange(choice.cash_min, choice.cash_max)
             : choice.cash_min;
       }
-      if (cashChange !== 0 || choice.cash_min !== 0) { // Add if there's a change or if it explicitly sets to 0 from non-zero
+      if (cashChange !== 0) {
         calculatedEffects.push({
             metric: 'cash',
             value: cashChange,
@@ -291,7 +351,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
             ? getRandomInRange(choice.revenue_min, choice.revenue_max)
             : choice.revenue_min;
       }
-      if (revenueChange !== 0 || choice.revenue_min !==0) {
+      if (revenueChange !== 0) {
          calculatedEffects.push({
             metric: 'revenue',
             value: revenueChange,
@@ -316,7 +376,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
             ? getRandomInRange(choice.expenses_min, choice.expenses_max)
             : choice.expenses_min;
       }
-       if (expensesChange !== 0 || choice.expenses_min !== 0) {
+       if (expensesChange !== 0) {
         calculatedEffects.push({
             metric: 'expenses',
             value: expensesChange,
@@ -334,12 +394,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       } else {
         ratingChange = choice.customer_rating_min;
       }
-      if (ratingChange !== 0 || choice.customer_rating_min !== 0) {
+      if (ratingChange !== 0) {
           const potentialNewRating = currentCustomerRating + ratingChange;
           const actualNewRating = Math.max(0, Math.min(100, potentialNewRating));
           const finalRatingChange = actualNewRating - currentCustomerRating;
 
-          if(finalRatingChange !== 0 || choice.customer_rating_min !== 0) {
+          if(finalRatingChange !== 0) {
             calculatedEffects.push({
                 metric: 'customerRating',
                 value: finalRatingChange, 
@@ -353,117 +413,188 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const handleCardDecision = (choice: CardChoice) => {
-    console.log("Card decision made:", choice.label, choice);
+    if (!isMounted || !currentDisplayCard || gameOverStatus) { // Halt if game over
+      console.warn("handleCardDecision: Not mounted, no current card, or game over.");
+      return;
+    }
+    console.log(`Card decision made for card '${currentDisplayCard.title}':`, choice.label);
+
+    // 1. Calculate Effects
+    const effectsDetails = calculateCardChoiceEffects(choice, { cash, revenue, expenses, customerRating });
     
-    if (currentDisplayCard) {
-      const effectsToApply = calculateCardChoiceEffects(choice, {cash, revenue, expenses, customerRating});
-      
-      const newAnimations: EffectAnimationItem[] = [];
+    // Temporary state to batch updates for win/loss check
+    let tempCash = cash;
+    let tempRevenue = revenue;
+    let tempExpenses = expenses;
+    let tempCustomerRating = customerRating;
 
-      effectsToApply.forEach(eff => {
-        const animationId = `eff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        newAnimations.push({ ...eff, id: animationId });
+    // 2. Apply effects and prepare animations
+    const newAnimations: EffectAnimationItem[] = [];
+    effectsDetails.forEach(effect => {
+      const animationId = Date.now().toString() + Math.random().toString(); // Simple unique ID
+      newAnimations.push({ ...effect, id: animationId });
 
-        switch(eff.metric) {
-          case 'cash':
-            setCash(prev => {
-              const newValue = prev + eff.value;
-              console.log(`  Cash: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
-              return newValue;
-            });
-            break;
-          case 'revenue':
-            setRevenue(prev => {
-              const newValue = prev + eff.value;
-              console.log(`  Revenue: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
-              return newValue;
-            });
-            break;
-          case 'expenses':
-            setExpenses(prev => {
-              const newValue = prev + eff.value;
-              console.log(`  Expenses: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
-              return newValue;
-            });
-            break;
-          case 'customerRating':
-            setCustomerRating(prev => {
-              const newValue = prev + eff.value; // eff.value already considers 0-100 bounds
-              console.log(`  Customer Rating: ${prev} -> ${newValue} (Applied Change: ${eff.value >= 0 ? '+' : ''}${eff.value})`);
-              return newValue; // No need to clamp again as calculateCardChoiceEffects pre-clamps for rating
-            });
-            break;
-        }
-      });
-
-      if (newAnimations.length > 0) {
-        setEffectAnimations(prevAnims => [...prevAnims, ...newAnimations]);
+      switch (effect.metric) {
+        case 'cash':
+          tempCash += effect.value;
+          break;
+        case 'revenue':
+          tempRevenue += effect.value;
+          break;
+        case 'expenses':
+          tempExpenses += effect.value;
+          break;
+        case 'customerRating':
+          tempCustomerRating = Math.max(0, Math.min(100, tempCustomerRating + effect.value));
+          break;
       }
+    });
 
-    } else {
-      console.warn("handleCardDecision called but currentDisplayCard is null. Effects not applied.");
+    // 3. Update actual state AFTER all calculations for the current choice
+    setCash(tempCash);
+    setRevenue(tempRevenue);
+    setExpenses(tempExpenses);
+    setCustomerRating(tempCustomerRating);
+    setEffectAnimations(newAnimations);
+
+    // 4. Check for Win/Loss conditions AFTER updating cash
+    if (tempCash >= 100000) {
+      setGameOverStatus('win');
+      console.log("YOU WIN! Reached $100,000 cash.");
+      setCurrentDisplayCard(null); // Clear card display
+      return; // Stop further game progression
+    }
+    if (tempCash <= 0) {
+      // Ensure cash doesn't show negative on HUD if bankrupt
+      setCash(0); 
+      setGameOverStatus('lose');
+      console.log("GAME OVER: Bankrupt!");
+      setCurrentDisplayCard(null); // Clear card display
+      return; // Stop further game progression
     }
 
+    // 5. Clear current card and advance game phase
     setCurrentDisplayCard(null);
 
-    if (cardsCollectedCount === 1) {
-      setMonthPhase('awaitingSecondCard');
-      spawnNewCard();
-      console.log("Decision made for first card. Phase: awaitingSecondCard. Spawning second card.");
-    } else if (cardsCollectedCount === 2) {
-      setMonthPhase('awaitingCash');
-      gameRunnerSceneRef.current?.spawnCash();
-      console.log("Decision made for second card. Phase: awaitingCash. Spawned cash.");
+    // Advance game state (spawn next card or cash)
+    if (monthPhase === 'cardDecision') {
+      if (cardsCollectedCount < 2) {
+        console.log("Card decision processed. Spawning next card.");
+        setMonthPhase('awaitingSecondCard'); // Or back to awaitingFirstCard if logic implies only one decision phase
+        spawnNewCard();
+      } else if (cardsCollectedCount === 2) {
+        console.log("Second card decision processed. Spawning cash.");
+        setMonthPhase('awaitingCash');
+        gameRunnerSceneRef.current?.spawnCash();
+      }
     }
   };
 
+  // Render game over overlay if status is set
+  const renderGameOverOverlay = () => {
+    if (!gameOverStatus) return null;
+
+    const message = gameOverStatus === 'win' ? "You Win!" : "Game Over!";
+    const subMessage = gameOverStatus === 'win' ? "Congratulations! You've built a thriving business." : "Unfortunately, you've gone bankrupt.";
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 3000, // Ensure it's on top of everything
+        color: 'white',
+        textAlign: 'center',
+        fontFamily: 'sans-serif'
+      }}>
+        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>{message}</h1>
+        <p style={{ fontSize: '24px', marginBottom: '30px' }}>{subMessage}</p>
+        <button 
+          onClick={() => router.push('/')}
+          style={{
+            padding: '15px 30px',
+            fontSize: '20px',
+            backgroundColor: '#4A90E2',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+          }}
+        >
+          Return to Main Menu
+        </button>
+      </div>
+    );
+  };
+  
+
   return (
-    <div>
-      <GameHUD 
-        cash={cash}
-        revenue={revenue}
-        expenses={expenses}
-        customerRating={customerRating}
-        month={month}
-        year={year}
-        industryName={industry.name}
-        cardsCollectedCount={cardsCollectedCount}
-        onBackButtonClick={handleBackButtonClick}
-        effectAnimations={effectAnimations}
-        onAnimationComplete={handleAnimationComplete}
-      />
-      <GameRunnerScene ref={gameRunnerSceneRef} isPaused={!!currentDisplayCard} onCollect={handleCollect} />
+    <div className="relative h-screen w-screen overflow-hidden">
+      {/* Game Over Overlay */}
+      {isMounted && renderGameOverOverlay()}
 
-      <AnimatePresence>
-        {currentDisplayCard && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
-          >
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* HUD */}
+      {isMounted && !gameOverStatus && ( // Hide HUD if game is over, or style it differently
+        <GameHUD 
+          cash={cash}
+          revenue={revenue}
+          expenses={expenses}
+          customerRating={customerRating}
+          month={month}
+          year={year}
+          industryName={industry.name}
+          cardsCollectedCount={cardsCollectedCount}
+          onBackButtonClick={handleBackButtonClick}
+          effectAnimations={effectAnimations}
+          onAnimationComplete={handleAnimationComplete}
+        />
+      )}
+      
+      {/* Game Runner Scene (Canvas) */}
+      {isMounted && ( // Conditionally render or disable interaction
+        <GameRunnerScene 
+          ref={gameRunnerSceneRef} 
+          onCollect={handleCollect}
+          isPaused={!!currentDisplayCard || !!gameOverStatus} // Added isPaused prop
+          disableInteraction={!!gameOverStatus} // Pass a prop to disable clicks if game over
+        />
+      )}
 
-      <AnimatePresence>
-        {currentDisplayCard && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            onClick={(e) => e.stopPropagation()}
-            className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden"
-          >
-            <div className="overflow-y-auto p-3 sm:p-4 flex-grow">
-              <CardDisplay 
-                card={currentDisplayCard} 
-                onDecision={handleCardDecision}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Card Display Modal */}
+      {isMounted && currentDisplayCard && !gameOverStatus && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+        >
+        </motion.div>
+      )}
+
+      {isMounted && currentDisplayCard && !gameOverStatus && (
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden"
+        >
+          <div className="overflow-y-auto p-3 sm:p-4 flex-grow">
+            <CardDisplay 
+              card={currentDisplayCard} 
+              onDecision={handleCardDecision}
+            />
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

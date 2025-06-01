@@ -50,10 +50,11 @@ const StatDeltaAnimation: React.FC<StatDeltaAnimationProps> = ({ animationItem, 
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.8 }}
-      animate={{ opacity: 1, y: customPositionStyle?.top ? 0 : 0, scale: 1 }}
-      exit={{ opacity: 0, y: customPositionStyle?.top ? 10 : -10, scale: 0.8 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
+      key={id}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className={`absolute text-sm font-semibold whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-800 bg-opacity-80 shadow-lg ${color}`}
       style={customPositionStyle ? customPositionStyle : { top: '0.25rem', right: '0.25rem', zIndex: 10 } }
     >
