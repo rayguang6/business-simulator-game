@@ -116,3 +116,36 @@ interface CardChoice {
     win_condition_met: boolean;
     active_cards: string[]; // or Card[] if you want to store full card objects
   }
+
+interface UserProfile {
+  id: string; // Corresponds to Supabase auth.users.id
+  username: string;
+  display_name?: string | null; // Optional, can default to username
+  email?: string | null; // From auth.users.email, for convenience in UI
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface GameSessionSupabase {
+  id: string; 
+  user_id: string; 
+  industry_id: string;
+  start_time: string; 
+  end_time?: string | null;
+  duration_minutes?: number | null;
+  cards_played?: number | null;
+  months_played?: number | null;
+  outcome?: string | null;
+  final_cash?: number | null;
+  created_at?: string;
+}
+
+interface LeaderboardEntry {
+  rank?: number; // Will be assigned client-side
+  display_name: string | null;
+  final_cash: number | null;
+  months_played?: number | null;
+  industry_name?: string; // Optional: If we want to show which industry
+  outcome?: string | null; // Optional: To show if it was a win, etc.
+}

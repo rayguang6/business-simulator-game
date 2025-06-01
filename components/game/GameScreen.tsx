@@ -8,6 +8,7 @@ import { RoadObject } from '@/lib/game/managers/RoadObjectManager';
 import CardDisplay from '@/components/game/Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/game-data/data-service';
+import { GameSessionService } from '@/lib/services/gameSessionService';
 
 // CardTypeEnum, Industry, Card, CardChoice are globally available from lib/global.d.ts
 
@@ -21,6 +22,9 @@ interface EffectCalculationDetail {
 export interface EffectAnimationItem extends EffectCalculationDetail {
   id: string;
 }
+
+// Session tracking interface for analytics and leaderboard (using imported GameSession type)
+// interface GameSession - removed as we're importing it from sessionStorage
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -68,13 +72,12 @@ type GameOverStatus = 'win' | 'lose' | null; // New type for game over
 const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false); // Track when initial setup is complete
+  const [isInitialized, setIsInitialized] = useState(false);
   
-  // State for HUD values - Initialize with industry values immediately
   const [cash, setCash] = useState(() => industry.startingCash || 0);
   const [revenue, setRevenue] = useState(() => industry.startingRevenue || 0);
   const [expenses, setExpenses] = useState(() => industry.startingExpenses || 0);
-  const [customerRating, setCustomerRating] = useState(75); // Default customer rating
+  const [customerRating, setCustomerRating] = useState(75);
 
   const [month, setMonth] = useState(() => getCurrentMonthYear().month);
   const [year, setYear] = useState(() => getCurrentMonthYear().year);
@@ -83,17 +86,24 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [cardsCollectedCount, setCardsCollectedCount] = useState(0); 
   const [currentDisplayCard, setCurrentDisplayCard] = useState<Card | null>(null);
   const [effectAnimations, setEffectAnimations] = useState<EffectAnimationItem[]>([]);
-  const [gameOverStatus, setGameOverStatus] = useState<GameOverStatus>(null); // New state for game over
+  const [gameOverStatus, setGameOverStatus] = useState<GameOverStatus>(null);
+  const [monthsPlayed, setMonthsPlayed] = useState(0);
+
+  // NEW Local state for simplified session tracking
+  const [gameSessionStartTime, setGameSessionStartTime] = useState<number>(0);
+  const [cardsPlayedThisSession, setCardsPlayedThisSession] = useState<number>(0);
 
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
 
   useEffect(() => {
     setIsMounted(true);
-    // Ensure values are synchronized with industry prop
     setCash(industry.startingCash || 0);
     setRevenue(industry.startingRevenue || 0); 
     setExpenses(industry.startingExpenses || 0);
-    // Mark as initialized after all state updates
+    setMonthsPlayed(0);
+    setCardsPlayedThisSession(0); 
+    setGameSessionStartTime(Date.now()); 
+    setGameOverStatus(null); 
     setIsInitialized(true);
   }, [industry]);
 
@@ -103,11 +113,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const handleBackButtonClick = () => {
-    if (gameOverStatus) { // If game is over, just go back
+    if (gameOverStatus) { 
         router.push('/');
         return;
     }
     if (window.confirm("Are you sure you want to quit the game and return to the main page?")) {
+      handleGameConcluded('quit', cash, monthsPlayed);
       router.push('/');
     }
   };
@@ -213,7 +224,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   }, [month, year, isMounted, isInitialized, gameOverStatus]);
 
   const handleCollect = (collectedObject: RoadObject) => {
-    if (!isMounted || gameOverStatus) return; // Halt if game over
+    if (!isMounted || gameOverStatus) return;
 
     const audioSrc = audioMap[collectedObject.type];
     if (audioSrc) {
@@ -262,23 +273,32 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           setEffectAnimations(prevAnims => prevAnims.filter(anim => anim.metric !== 'cash'));
         }
 
+        const newMonthsPlayed = monthsPlayed + 1; // Month is now completed
+
         // Check for bankruptcy
-        if (updatedCash <= 0) {
-            setCash(0); // Set cash to 0 for display
+        if (updatedCash <= 0 && !gameOverStatus) { // Ensure not already game over
+            setCash(0); 
             setGameOverStatus('lose');
+            handleGameConcluded('loss', 0, newMonthsPlayed); // Log session
             console.log("GAME OVER: Bankrupt from month-end PNL!");
             return; 
         }
-        // Check for win condition (unlikely here, but good for completeness if PNL is massive)
-        else if (updatedCash >= 100000) {
+        // Check for win condition 
+        else if (updatedCash >= 100000 && !gameOverStatus) { // Ensure not already game over
             setCash(updatedCash);
             setGameOverStatus('win');
+            handleGameConcluded('win', updatedCash, newMonthsPlayed); // Log session
             console.log("YOU WIN! Reached $100,000 cash from month-end PNL.");
             return;
         } else {
-             setCash(updatedCash); // Apply PNL to cash
+             setCash(updatedCash); 
         }
 
+        // Increment actual months played counter when month completes
+        setMonthsPlayed(newMonthsPlayed);
+        
+        console.log(`Month completed! Total months played: ${newMonthsPlayed}`);
+        
         setMonth(prevMonth => {
           if (prevMonth === 11) { 
             setYear(prevYear => prevYear + 1);
@@ -413,81 +433,78 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   };
 
   const handleCardDecision = (choice: CardChoice) => {
-    if (!isMounted || !currentDisplayCard || gameOverStatus) { // Halt if game over
-      console.warn("handleCardDecision: Not mounted, no current card, or game over.");
-      return;
-    }
-    console.log(`Card decision made for card '${currentDisplayCard.title}':`, choice.label);
+    if (gameOverStatus || !currentDisplayCard || !isMounted) return;
 
-    // 1. Calculate Effects
+    console.log("GameScreen: Handling card decision:", choice.label);
+    setCardsPlayedThisSession(prev => prev + 1);
+
     const effectsDetails = calculateCardChoiceEffects(choice, { cash, revenue, expenses, customerRating });
     
-    // Temporary state to batch updates for win/loss check
     let tempCash = cash;
     let tempRevenue = revenue;
     let tempExpenses = expenses;
     let tempCustomerRating = customerRating;
 
-    // 2. Apply effects and prepare animations
-    const newAnimations: EffectAnimationItem[] = [];
     effectsDetails.forEach(effect => {
-      const animationId = Date.now().toString() + Math.random().toString(); // Simple unique ID
-      newAnimations.push({ ...effect, id: animationId });
-
       switch (effect.metric) {
-        case 'cash':
-          tempCash += effect.value;
-          break;
-        case 'revenue':
-          tempRevenue += effect.value;
-          break;
-        case 'expenses':
-          tempExpenses += effect.value;
-          break;
-        case 'customerRating':
-          tempCustomerRating = Math.max(0, Math.min(100, tempCustomerRating + effect.value));
-          break;
+        case 'cash': tempCash += effect.value; break;
+        case 'revenue': tempRevenue += effect.value; break;
+        case 'expenses': tempExpenses += effect.value; break;
+        case 'customerRating': tempCustomerRating = Math.min(5, Math.max(1, tempCustomerRating + effect.value)); break;
       }
     });
 
-    // 3. Update actual state AFTER all calculations for the current choice
     setCash(tempCash);
     setRevenue(tempRevenue);
     setExpenses(tempExpenses);
     setCustomerRating(tempCustomerRating);
-    setEffectAnimations(newAnimations);
+    
+    const newAnimations = effectsDetails.map(detail => ({ ...detail, id: Date.now().toString() + Math.random() }));
+    setEffectAnimations(prev => [...prev, ...newAnimations]);
 
-    // 4. Check for Win/Loss conditions AFTER updating cash
-    if (tempCash >= 100000) {
-      setGameOverStatus('win');
-      console.log("YOU WIN! Reached $100,000 cash.");
-      setCurrentDisplayCard(null); // Clear card display
-      return; // Stop further game progression
-    }
+    setCurrentDisplayCard(null); 
+    setMonthPhase('awaitingCash'); 
+
+    let newGameOverStatus: GameOverStatus = null;
     if (tempCash <= 0) {
-      // Ensure cash doesn't show negative on HUD if bankrupt
-      setCash(0); 
-      setGameOverStatus('lose');
-      console.log("GAME OVER: Bankrupt!");
-      setCurrentDisplayCard(null); // Clear card display
-      return; // Stop further game progression
+      newGameOverStatus = 'lose';
+    } else if (tempCash >= 100000) { 
+      newGameOverStatus = 'win';
     }
 
-    // 5. Clear current card and advance game phase
-    setCurrentDisplayCard(null);
-
-    // Advance game state (spawn next card or cash)
-    if (monthPhase === 'cardDecision') {
-      if (cardsCollectedCount < 2) {
-        console.log("Card decision processed. Spawning next card.");
-        setMonthPhase('awaitingSecondCard'); // Or back to awaitingFirstCard if logic implies only one decision phase
-        spawnNewCard();
-      } else if (cardsCollectedCount === 2) {
-        console.log("Second card decision processed. Spawning cash.");
-        setMonthPhase('awaitingCash');
-        gameRunnerSceneRef.current?.spawnCash();
+    if (newGameOverStatus) {
+      setGameOverStatus(newGameOverStatus);
+      if (newGameOverStatus === 'win') {
+        handleGameConcluded('win', tempCash, monthsPlayed);
+      } else if (newGameOverStatus === 'lose') {
+        handleGameConcluded('loss', tempCash, monthsPlayed);
       }
+      console.log(newGameOverStatus === 'win' ? "YOU WIN! Reached $100,000 cash." : "GAME OVER: Bankrupt!");
+    } else {
+      gameRunnerSceneRef.current?.spawnCash();
     }
+  };
+
+  // NEW function to log game session conclusion
+  const handleGameConcluded = async (
+    outcome: 'win' | 'loss' | 'quit',
+    finalCashValue: number,
+    finalMonthsPlayed: number
+  ) => {
+    if (!gameSessionStartTime) {
+      console.error("[GameScreen] Game session start time not set. Cannot log session.");
+      return;
+    }
+    await GameSessionService.logCompletedGameSession(
+      industry.id,
+      outcome,
+      finalCashValue,
+      finalMonthsPlayed,
+      cardsPlayedThisSession,
+      gameSessionStartTime,
+      Date.now() // sessionEndTime
+    );
+    console.log(`[GameScreen] Game concluded. Outcome: ${outcome}, Cash: ${finalCashValue}, Months: ${finalMonthsPlayed}, Cards: ${cardsPlayedThisSession}`);
   };
 
   // Render game over overlay if status is set
@@ -496,6 +513,18 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
     const message = gameOverStatus === 'win' ? "You Win!" : "Game Over!";
     const subMessage = gameOverStatus === 'win' ? "Congratulations! You've built a thriving business." : "Unfortunately, you've gone bankrupt.";
+
+    // Calculate play time for display
+    const playTimeMs = gameSessionStartTime ? Date.now() - gameSessionStartTime : 0;
+    const playTimeMinutes = playTimeMs / (1000 * 60);
+    const formattedPlayTime = playTimeMinutes < 1 
+      ? `${Math.round(playTimeMinutes * 60)}s`
+      : `${Math.round(playTimeMinutes)}m`;
+
+    // Use local state values for the summary of the concluded game
+    const finalCashDisplay = cash; // Local cash state at game end
+    const cardsPlayedDisplay = cardsPlayedThisSession; // Local counter
+    const monthsSurvivedDisplay = monthsPlayed; // Local counter
 
     return (
       <div style={{
@@ -509,13 +538,33 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 3000, // Ensure it's on top of everything
+        zIndex: 3000, 
         color: 'white',
         textAlign: 'center',
         fontFamily: 'sans-serif'
       }}>
         <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>{message}</h1>
-        <p style={{ fontSize: '24px', marginBottom: '30px' }}>{subMessage}</p>
+        <p style={{ fontSize: '24px', marginBottom: '20px' }}>{subMessage}</p>
+        
+        <div style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          padding: '20px',
+          borderRadius: '12px',
+          marginBottom: '30px',
+          minWidth: '300px'
+        }}>
+          <h3 style={{ fontSize: '20px', marginBottom: '15px', color: '#4A90E2' }}>Session Summary</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '16px' }}>
+            <div>💰 Final Cash: ${finalCashDisplay.toLocaleString()}</div>
+            <div>⏱️ Play Time: {formattedPlayTime}</div>
+            <div>🃏 Cards Played: {cardsPlayedDisplay}</div>
+            <div>📅 Months Survived: {monthsSurvivedDisplay}</div>
+          </div>
+          <div style={{ marginTop: '10px', fontSize: '14px', opacity: 0.8 }}>
+            Industry: {industry.name}
+          </div>
+        </div>
+
         <button 
           onClick={() => router.push('/')}
           style={{

@@ -18,7 +18,6 @@ interface GameStore {
   nextMonth: () => void;
   resetGame: () => void;
   
-  // New functions for temporary effects
   addTemporaryEffect: (effect: {
     name: string;
     revenue?: number;
@@ -65,10 +64,7 @@ export const useGameStore = create<GameStore>((set) => ({
   
   updateCustomerRating: (amount) => set((state) => {
     if (!state.gameState) return {};
-    
-    // Ensure customer rating stays between 1 and 5
     const newRating = Math.min(5, Math.max(1, state.gameState.customer_rating + amount));
-    
     return { 
       gameState: { 
         ...state.gameState, 
@@ -133,10 +129,8 @@ export const useGameStore = create<GameStore>((set) => ({
   
   resetGame: () => set({ selectedIndustry: null, gameState: null }),
   
-  // New function to add temporary effects
   addTemporaryEffect: (effect) => set((state) => {
     if (!state.gameState) return {};
-    
     return { 
       gameState: { 
         ...state.gameState, 
@@ -145,18 +139,14 @@ export const useGameStore = create<GameStore>((set) => ({
     };
   }),
   
-  // Process temporary effects at month end
   processTemporaryEffects: () => set((state) => {
     if (!state.gameState) return {};
-    
-    // Reduce duration and filter out expired effects
     const updatedEffects = (state.gameState.temporary_effects || [])
       .map(effect => ({
         ...effect,
         monthsRemaining: effect.monthsRemaining - 1
       }))
       .filter(effect => effect.monthsRemaining > 0);
-    
     return { 
       gameState: { 
         ...state.gameState, 
