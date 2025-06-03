@@ -94,6 +94,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [cardsPlayedThisSession, setCardsPlayedThisSession] = useState<number>(0);
 
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
+  const backgroundAudioRef = useRef<HTMLAudioElement>(null); // Added for background audio
 
   useEffect(() => {
     setIsMounted(true);
@@ -106,6 +107,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     setGameOverStatus(null); 
     setIsInitialized(true);
   }, [industry]);
+
+  useEffect(() => {
+    if (isMounted && backgroundAudioRef.current) {
+      backgroundAudioRef.current.loop = true;
+      backgroundAudioRef.current.play().catch(error => {
+        console.warn("Background audio playback failed:", error);
+        // Optionally, provide a UI element for the user to manually start audio
+      });
+    }
+  }, [isMounted]);
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
@@ -588,7 +599,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       {/* Game Over Overlay */}
-      {isMounted && renderGameOverOverlay()}
+      {gameOverStatus && renderGameOverOverlay()}
+
+      {/* Background Audio Element */}
+      <audio ref={backgroundAudioRef} src="/audio/bg.mp3" preload="auto" />
 
       {/* HUD */}
       {isMounted && !gameOverStatus && ( // Hide HUD if game is over, or style it differently
