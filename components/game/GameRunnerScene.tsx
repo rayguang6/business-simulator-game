@@ -2,11 +2,13 @@
 import React, { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { CharacterSprite } from "@/lib/game/entities/CharacterSprite";
 import { BackgroundRenderer } from "@/lib/game/managers/BackgroundRenderer";
+import { BackgroundImageManager } from "@/lib/game/managers/BackgroundImageManager";
 import { EmojiDecorationManager } from "@/lib/game/managers/EmojiDecorationManager";
 import { RoadObjectsManager, RoadObject } from "@/lib/game/managers/RoadObjectManager";
-import { CardTypeEnum } from '@/lib/enums';
+import { CardTypeEnum } from '@/lib/constants';
+import { INDUSTRY_BACKGROUNDS } from '@/lib/constants';
 
-// CardTypeEnum is globally available from lib/global.d.ts
+// CardTypeEnum is now imported from constants
 
 // Define handles to be exposed to the parent component (GameScreen)
 export interface GameRunnerSceneHandles {
@@ -15,25 +17,51 @@ export interface GameRunnerSceneHandles {
   clearRoadObjects: () => void;
 }
 
+interface BackgroundConfig {
+  skyTop?: string;
+  skyBottom?: string;
+  ground?: string;
+  road?: string;
+  emojis?: string[];
+  mobile_background?: string;
+  desktop_background?: string;
+}
+
 interface GameRunnerSceneProps {
   isPaused: boolean;
-  backgroundConfig?: {
-    skyTop?: string;
-    skyBottom?: string;
-    ground?: string;
-    road?: string;
-    emojis?: string[];
-  };
+  backgroundConfig?: BackgroundConfig;
   onCollect?: (collectedObject: RoadObject) => void;
   disableInteraction?: boolean;
 }
 
-const defaultBackgroundConfig = {
+// Helper function to detect mobile
+const isMobile = () => {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 768; // Tailwind's md breakpoint
+};
+
+// Helper function to get appropriate background image
+const getBackgroundImage = (config: BackgroundConfig): string | undefined => {
+  // If specific mobile/desktop images are provided (from Supabase), use them
+  if (isMobile() && config.mobile_background) {
+    return config.mobile_background;
+  }
+  if (!isMobile() && config.desktop_background) {
+    return config.desktop_background;
+  }
+  
+  // Simple fallbacks: use default local images
+  const device = isMobile() ? 'mobile' : 'desktop';
+  return INDUSTRY_BACKGROUNDS[device];
+};
+
+const defaultConfig: BackgroundConfig = {
   skyTop: "#4A90E2",
   skyBottom: "#7BB3F4",
   ground: "#1a1a2e",
   road: "#2C3E50",
-  emojis: ["🌳", "🌴", "🌵", "🪨", "🌲", "🌿"],
+  emojis: ["🌳", "🌴", "🌵", "🪨", "🌲", "🌿"], 
+  // No backgroundImage here - will use getBackgroundImage function
 };
 
 // Wrap component with forwardRef
@@ -46,9 +74,11 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const characterRef = useRef<CharacterSprite | null>(null);
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null);
+  const backgroundImageRef = useRef<BackgroundImageManager | null>(null);
   const emojiManagerRef = useRef<EmojiDecorationManager | null>(null);
   const roadObjectsRef = useRef<RoadObjectsManager | null>(null);
   const animationFrameRef = useRef<number>(0);
+  const [viewportChanged, setViewportChanged] = React.useState(0);
 
   // Expose specific methods to the parent component using useImperativeHandle
   useImperativeHandle(ref, () => ({
@@ -64,25 +94,27 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
   }));
 
   useEffect(() => {
-    const config = backgroundConfig || defaultBackgroundConfig;
+    const config = { ...defaultConfig, ...backgroundConfig };
+    const backgroundImageSrc = getBackgroundImage(config);
     
     if (!backgroundRendererRef.current) {
       backgroundRendererRef.current = new BackgroundRenderer(config);
+    } else {
+      backgroundRendererRef.current.updateConfig(config);
     }
     
-    if (!emojiManagerRef.current && config.emojis) {
-      emojiManagerRef.current = new EmojiDecorationManager(config.emojis, 400);
+    if (!backgroundImageRef.current) {
+      backgroundImageRef.current = new BackgroundImageManager();
+    }
+    
+    if (backgroundImageSrc) {
+      backgroundImageRef.current.updateImage(backgroundImageSrc);
     }
     
     if (!roadObjectsRef.current) {
-      // Update RoadObjectManager instantiation - no more spawnInterval argument
       roadObjectsRef.current = new RoadObjectsManager(); 
     }
-    
-    if (backgroundConfig) {
-      backgroundRendererRef.current.updateConfig(backgroundConfig);
-    }
-  }, [backgroundConfig]);
+  }, [backgroundConfig, viewportChanged]);
 
   const checkCollisions = useCallback(() => {
     if (!characterRef.current || !roadObjectsRef.current) return;
@@ -132,18 +164,24 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      if (backgroundRendererRef.current) {
-        backgroundRendererRef.current.draw(ctx, canvas.width, canvas.height);
+      // Disabled - only draw background image, no overlays
+      // if (backgroundRendererRef.current) {
+      //   backgroundRendererRef.current.draw(ctx, canvas.width, canvas.height);
+      // }
+      
+      if (backgroundImageRef.current) {
+        backgroundImageRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
-      if (emojiManagerRef.current) {
-        const currentTime = Date.now();
-        if (!isPaused) {
-          emojiManagerRef.current.spawn(currentTime);
-          emojiManagerRef.current.update(16);
-        }
-        emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
-      }
+      // 3. Temporarily commented out emojis
+      // if (emojiManagerRef.current) {
+      //   const currentTime = Date.now();
+      //   if (!isPaused) {
+      //     emojiManagerRef.current.spawn(currentTime);
+      //     emojiManagerRef.current.update(16);
+      //   }
+      //   emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
+      // }
       
       if (roadObjectsRef.current) {
         if (!isPaused) {
@@ -174,6 +212,16 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
       }
     };
   }, [isPaused, checkCollisions, backgroundConfig, disableInteraction]);
+
+  // Handle viewport changes to switch between mobile/desktop images
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportChanged(prev => prev + 1); // Force re-evaluation of background image
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <canvas

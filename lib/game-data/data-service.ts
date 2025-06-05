@@ -24,7 +24,9 @@ export async function getIndustries(): Promise<Industry[]> {
     startingCash: industry.starting_cash,
     startingRevenue: industry.starting_revenue,
     startingExpenses: industry.starting_expenses,
-    isAvailable: industry.is_available || false
+    isAvailable: industry.is_available || false,
+    mobile_background: industry.mobile_background,
+    desktop_background: industry.desktop_background
   }));
 }
 
@@ -50,7 +52,9 @@ export async function getIndustry(industryId: string): Promise<Industry | null> 
     startingCash: data.starting_cash,
     startingRevenue: data.starting_revenue,
     startingExpenses: data.starting_expenses,
-    isAvailable: data.is_available || false
+    isAvailable: data.is_available || false,
+    mobile_background: data.mobile_background,
+    desktop_background: data.desktop_background
   };
 }
 

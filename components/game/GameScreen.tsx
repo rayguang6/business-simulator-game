@@ -1,7 +1,7 @@
 "use client";
 import GameRunnerScene, { GameRunnerSceneHandles } from './GameRunnerScene';
 import React, { useState, useEffect, useRef } from 'react';
-import { CardTypeEnum } from '@/lib/enums';
+import { CardTypeEnum, CARD_TYPE_DEFINITIONS, TOTAL_CARD_TYPE_WEIGHT, CARD_TYPE_COLORS } from '@/lib/constants';
 import GameHUD from './GameHUD';
 import { useRouter } from 'next/navigation';
 import { RoadObject } from '@/lib/game/managers/RoadObjectManager';
@@ -40,18 +40,8 @@ const formatMonthYear = (month: number, year: number) => {
   return `${monthNames[month]} ${year}`;
 };
 
-// Simplified Card Type Probabilities & Getter
-const CARD_TYPE_DEFINITIONS = [
-  { type: CardTypeEnum.opportunity, weight: 60 }, // e.g., 60%
-  { type: CardTypeEnum.problem,    weight: 20 }, // e.g., 20%
-  { type: CardTypeEnum.market,     weight: 15 }, // e.g., 15%
-  { type: CardTypeEnum.happy,      weight: 5 }  // e.g., 5%
-];
-// Calculate total weight once
-const totalCardTypeWeight = CARD_TYPE_DEFINITIONS.reduce((sum, def) => sum + def.weight, 0);
-
 const getRandomCardType = (): CardTypeEnum => {
-  let randomWeight = Math.random() * totalCardTypeWeight;
+  let randomWeight = Math.random() * TOTAL_CARD_TYPE_WEIGHT;
   for (const def of CARD_TYPE_DEFINITIONS) {
     if (randomWeight < def.weight) {
       return def.type;
@@ -474,8 +464,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     setEffectAnimations(prev => [...prev, ...newAnimations]);
 
     setCurrentDisplayCard(null); 
-    setMonthPhase('awaitingCash'); 
 
+    // Check for game over first
     let newGameOverStatus: GameOverStatus = null;
     if (tempCash <= 0) {
       newGameOverStatus = 'lose';
@@ -492,7 +482,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       }
       console.log(newGameOverStatus === 'win' ? "YOU WIN! Reached $100,000 cash." : "GAME OVER: Bankrupt!");
     } else {
-      gameRunnerSceneRef.current?.spawnCash();
+      // Check if we need a second card or should go to cash phase
+      if (cardsCollectedCount < 2) {
+        console.log(`Card decision complete. Need ${2 - cardsCollectedCount} more card(s) this month.`);
+        setMonthPhase('awaitingSecondCard');
+        // Spawn the next card
+        if (isMounted) {
+          spawnNewCard();
+        }
+      } else {
+        console.log("Both cards collected and decided. Moving to cash phase.");
+        setMonthPhase('awaitingCash');
+        gameRunnerSceneRef.current?.spawnCash();
+      }
     }
   };
 
@@ -628,6 +630,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           onCollect={handleCollect}
           isPaused={!!currentDisplayCard || !!gameOverStatus} // Added isPaused prop
           disableInteraction={!!gameOverStatus} // Pass a prop to disable clicks if game over
+          backgroundConfig={{
+            mobile_background: industry.mobile_background,
+            desktop_background: industry.desktop_background
+          }}
         />
       )}
 
@@ -648,7 +654,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           onClick={(e) => e.stopPropagation()}
-          className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden"
+          className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg rounded-lg shadow-xl border-2 overflow-hidden"
+          style={{
+            backgroundColor: 'rgba(30, 41, 59, 0.5)', // slate-800 with 95% opacity (slightly transparent)
+            borderColor: CARD_TYPE_COLORS[currentDisplayCard.type as keyof typeof CARD_TYPE_COLORS] || CARD_TYPE_COLORS.opportunity,
+            boxShadow: `0 0 30px ${CARD_TYPE_COLORS[currentDisplayCard.type as keyof typeof CARD_TYPE_COLORS] || CARD_TYPE_COLORS.opportunity}20` // Glow effect with card color
+          }}
         >
           <div className="overflow-y-auto p-3 sm:p-4 flex-grow">
             <CardDisplay 

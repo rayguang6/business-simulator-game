@@ -72,10 +72,15 @@ const GameHUD: React.FC<GameHUDProps> = ({
     bgColorClass?: string 
   }> = 
     ({ icon, label, value, metricType, bgColorClass = 'bg-slate-800' }) => (
-    <div className={`relative flex-1 p-1 xxs:p-1.5 xs:p-2 rounded shadow-md ${bgColorClass} text-white min-w-[70px] xxs:min-w-[75px] xs:min-w-[85px] sm:min-w-[90px]`}>
+    <div className={`rounded-lg backdrop-blur-md border border-white/10 relative flex-1 p-1 xxs:p-1.5 xs:p-2 shadow-md text-white min-w-[70px] xxs:min-w-[75px] xs:min-w-[85px] sm:min-w-[90px]`}
+    style={{ 
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.15)'
+    }}
+    >
       <div className="flex items-center mb-0 xxs:mb-0.5">
         <span className="text-xs xxs:text-sm xs:text-base mr-0.5 xxs:mr-1">{icon}</span>
-        <span className="text-[8px] xxs:text-[9px] xs:text-[10px] font-medium uppercase text-slate-300 xxs:text-slate-400">{label}</span>
+        <span className="text-[8px] xxs:text-[9px] xs:text-[10px] font-medium uppercase text-slate-200">{label}</span>
       </div>
       <div className="text-sm xxs:text-base xs:text-lg font-bold truncate">{value}</div>
       <AnimatePresence>
@@ -99,7 +104,12 @@ const GameHUD: React.FC<GameHUDProps> = ({
   return (
     <div className="fixed top-0 left-0 right-0 z-[1000] text-white font-sans select-none">
       {/* Top Bar: Fine-tuned paddings and font sizes */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-500 px-1.5 py-1 sm:px-2 flex items-center justify-between shadow-md">
+      <div className="px-1.5 py-1 sm:px-2 flex items-center justify-between shadow-md backdrop-blur-lg border-b border-white/10"
+        style={{ 
+          background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.1)'
+        }}
+      >
         <div className="flex items-center flex-shrink min-w-0">
           <button 
             onClick={onBackButtonClick}
@@ -137,7 +147,12 @@ const GameHUD: React.FC<GameHUDProps> = ({
       </div>
 
       {/* Main Stats Area: Fine-tuned paddings and gaps */}
-      <div className="px-1.5 py-1 sm:px-2 sm:py-1.5 bg-slate-900">
+      <div className="px-1.5 py-1 sm:px-2 sm:py-1.5 backdrop-blur-sm"
+        style={{ 
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.02) 100%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)'
+        }}
+      >
         <div className="flex flex-row justify-between items-stretch gap-1 xxs:gap-1.5 xs:gap-2 mb-1 xxs:mb-1.5">
           <StatCard icon="💰" label="CASH" value={formatCurrency(cash)} metricType="cash" bgColorClass="bg-slate-800" />
           <StatCard icon="📈" label="REVENUE" value={formatCurrency(revenue)} metricType="revenue" bgColorClass="bg-slate-800" />
@@ -152,7 +167,7 @@ const GameHUD: React.FC<GameHUDProps> = ({
           >
             📊 PNL Report
           </button>
-          <span className="text-[9px] xxs:text-[10px] xs:text-xs text-slate-300 xxs:text-slate-400">
+          <span className="text-[9px] xxs:text-[10px] xs:text-xs text-slate-200">
             Cards: {cardsCollectedCount}/2
           </span>
         </div>

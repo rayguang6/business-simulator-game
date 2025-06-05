@@ -9,6 +9,8 @@ interface Industry {
   startingRevenue: number;
   startingExpenses: number;
   isAvailable: boolean;
+  mobile_background?: string;
+  desktop_background?: string;
 }
 
 // enum CardTypeEnum { ... } // Definition removed, now in lib/enums.ts

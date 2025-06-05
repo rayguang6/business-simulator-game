@@ -1,5 +1,5 @@
 import { PerspectiveUtils, WorldPosition } from '@/lib/game/perspective';
-import { CardTypeEnum } from '@/lib/enums';
+import { CardTypeEnum } from '@/lib/constants';
 
 export interface RoadObject extends WorldPosition {
   id: string;
@@ -24,19 +24,19 @@ export class RoadObjectsManager {
   private loadImages(): void {
     // Load images for each card type
     const card1Img = new Image();
-    card1Img.src = '/images/cards/card1.png'; // Assuming Opportunity
+    card1Img.src = '/images/cards/opportunity.png'; // Assuming Opportunity
     this.images[CardTypeEnum.opportunity] = card1Img;
 
     const card2Img = new Image();
-    card2Img.src = '/images/cards/card2.png'; // Assuming Problem
+    card2Img.src = '/images/cards/problem.png'; // Assuming Problem
     this.images[CardTypeEnum.problem] = card2Img;
 
     const card3Img = new Image();
-    card3Img.src = '/images/cards/card3.png'; // Assuming Market
+    card3Img.src = '/images/cards/market.png'; // Assuming Market
     this.images[CardTypeEnum.market] = card3Img;
 
     const card4Img = new Image();
-    card4Img.src = '/images/cards/card4.png'; // Assuming Happy
+    card4Img.src = '/images/cards/happy.png'; // Assuming Happy
     this.images[CardTypeEnum.happy] = card4Img;
 
     // Load cash image
@@ -131,16 +131,16 @@ export class RoadObjectsManager {
 
       ctx.globalAlpha = alpha;
 
-      // Draw shadow (ellipse under the object)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.ellipse(
-        screenX,
-        screenY + drawHeight * 0.4,
-        drawWidth * 0.4,
-        drawHeight * 0.1,
-        0, 0, Math.PI * 2
-      );
-      ctx.fill();
+      // Shadow removed - user doesn't like the black moving shadows
+      // ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      // ctx.ellipse(
+      //   screenX,
+      //   screenY + drawHeight * 0.4,
+      //   drawWidth * 0.4,
+      //   drawHeight * 0.1,
+      //   0, 0, Math.PI * 2
+      // );
+      // ctx.fill();
 
       // Draw the image, centered at (x, y), with correct aspect ratio
       ctx.drawImage(

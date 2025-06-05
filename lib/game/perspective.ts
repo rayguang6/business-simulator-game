@@ -12,7 +12,11 @@ export interface ScreenPosition {
   }
   
   export class PerspectiveUtils {
-    static readonly HORIZON_Y = 0.4; // 40% from top
+    // static readonly HORIZON_Y = 0.4; // 40% from top
+    // static readonly ROAD_WIDTH_BOTTOM = 0.6; // 60% of screen width
+    // static readonly ROAD_WIDTH_TOP = 60; // Pixels at vanishing point
+    // static readonly MAX_DEPTH = 10;
+    static readonly HORIZON_Y = 0.55; // 40% from top
     static readonly ROAD_WIDTH_BOTTOM = 0.6; // 60% of screen width
     static readonly ROAD_WIDTH_TOP = 60; // Pixels at vanishing point
     static readonly MAX_DEPTH = 10;

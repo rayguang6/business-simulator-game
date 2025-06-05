@@ -16,7 +16,7 @@ const StatDeltaAnimation: React.FC<StatDeltaAnimationProps> = ({ animationItem, 
   useEffect(() => {
     const timer = setTimeout(() => {
       onComplete(id);
-    }, 2000); // Animation duration + a little buffer, adjust as needed
+    }, 1000); // Animation duration + a little buffer, adjust as needed
     return () => clearTimeout(timer);
   }, [id, onComplete]);
 
