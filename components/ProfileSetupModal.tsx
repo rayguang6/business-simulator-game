@@ -6,12 +6,14 @@ interface ProfileSetupModalProps {
   isOpen: boolean;
   onProfileSubmit: (email: string, username: string) => Promise<void>; 
   isSubmitting: boolean;
+  onClose?: () => void;
 }
 
 export default function ProfileSetupModal({
   isOpen,
   onProfileSubmit,
   isSubmitting,
+  onClose,
 }: ProfileSetupModalProps) {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -43,7 +45,20 @@ export default function ProfileSetupModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-slate-800 p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-md relative">
+        {/* Close/Back Button */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 z-10"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <h2 className="text-2xl font-semibold text-white mb-6 text-center">Set Up Your Profile</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

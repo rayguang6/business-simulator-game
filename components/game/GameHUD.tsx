@@ -113,10 +113,12 @@ const GameHUD: React.FC<GameHUDProps> = ({
         <div className="flex items-center flex-shrink min-w-0">
           <button 
             onClick={onBackButtonClick}
-            className="mr-1 text-lg p-0.5 hover:bg-white/20 rounded-full active:bg-white/30 transition-colors"
+            className="mr-2 bg-slate-800 hover:bg-slate-700 transition-colors rounded-lg p-2 shadow-md flex items-center justify-center w-10 h-10"
             aria-label="Go back"
           >
-            ←
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="text-indigo-300">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
           <span className="mr-1.5 text-lg">☕</span>
           <span className="text-[11px] xs:text-xs font-semibold truncate pr-1">{industryName}</span>

@@ -83,6 +83,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [gameSessionStartTime, setGameSessionStartTime] = useState<number>(0);
   const [cardsPlayedThisSession, setCardsPlayedThisSession] = useState<number>(0);
 
+  const [showQuitModal, setShowQuitModal] = useState(false); // New state for quit confirmation
+
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
   const backgroundAudioRef = useRef<HTMLAudioElement>(null); // Added for background audio
 
@@ -118,10 +120,12 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
         router.push('/');
         return;
     }
-    if (window.confirm("Are you sure you want to quit the game and return to the main page?")) {
-      handleGameConcluded('quit', cash, monthsPlayed);
-      router.push('/');
-    }
+    setShowQuitModal(true); // Show custom modal instead of confirm
+  };
+
+  const handleConfirmQuit = () => {
+    handleGameConcluded('quit', cash, monthsPlayed);
+    router.push('/');
   };
 
   const spawnNewCard = () => {
@@ -600,6 +604,41 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
+      {/* Quit Confirmation Modal */}
+      <AnimatePresence>
+        {showQuitModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 30 }}
+              className="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8 max-w-xs w-full text-center"
+            >
+              <h2 className="text-xl font-bold mb-2 text-white">Quit Game?</h2>
+              <p className="text-slate-300 mb-6">Are you sure you want to quit and return to the main menu? Your progress for this session will be lost.</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setShowQuitModal(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmQuit}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition shadow-md"
+                >
+                  Quit Game
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Game Over Overlay */}
       {gameOverStatus && renderGameOverOverlay()}
 
