@@ -140,6 +140,7 @@ interface GameSessionSupabase {
   months_played?: number | null;
   outcome?: string | null;
   final_cash?: number | null;
+  highest_cash?: number | null;
   created_at?: string;
 }
 
@@ -147,6 +148,7 @@ interface LeaderboardEntry {
   rank?: number; // Will be assigned client-side
   display_name: string | null;
   final_cash: number | null;
+  highest_cash?: number | null;
   months_played?: number | null;
   industry_name?: string; // Optional: If we want to show which industry
   outcome?: string | null; // Optional: To show if it was a win, etc.

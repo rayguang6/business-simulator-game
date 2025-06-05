@@ -97,6 +97,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const gameRunnerSceneRef = useRef<GameRunnerSceneHandles>(null);
   const backgroundAudioRef = useRef<HTMLAudioElement>(null); // Added for background audio
 
+  const [highestCash, setHighestCash] = useState(cash); // Track highest cash
+
   useEffect(() => {
     setIsMounted(true);
     setCash(industry.startingCash || 0);
@@ -123,6 +125,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   useEffect(() => {
     checkAuthAndRedirect(router);
   }, [router]);
+
+  // Whenever cash changes, update highestCash if needed
+  useEffect(() => {
+    setHighestCash(prev => (cash > prev ? cash : prev));
+  }, [cash]);
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
@@ -533,7 +540,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       finalMonthsPlayed,
       cardsPlayedThisSession,
       gameSessionStartTime,
-      Date.now() // sessionEndTime
+      Date.now(),
+      highestCash // new argument
     );
     console.log(`[GameScreen] Game concluded. Outcome: ${outcome}, Cash: ${finalCashValue}, Months: ${finalMonthsPlayed}, Cards: ${cardsPlayedThisSession}`);
   };
@@ -673,6 +681,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           onBackButtonClick={handleBackButtonClick}
           effectAnimations={effectAnimations}
           onAnimationComplete={handleAnimationComplete}
+          monthsPlayed={monthsPlayed}
         />
       )}
       

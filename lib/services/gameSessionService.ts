@@ -12,7 +12,8 @@ export class GameSessionService {
     monthsPlayed: number,
     cardsPlayed: number,
     sessionStartTime: number, // Timestamp from GameScreen
-    sessionEndTime: number // Timestamp from GameScreen
+    sessionEndTime: number, // Timestamp from GameScreen
+    highestCash: number // new argument
   ): Promise<void> {
     const currentUser = await UserProfileService.getCurrentAuthUser();
     if (!currentUser) {
@@ -32,6 +33,7 @@ export class GameSessionService {
       months_played: monthsPlayed,
       outcome: outcome === 'bankrupt' ? 'loss' : outcome, // Map bankrupt to loss for DB consistency if needed, or keep bankrupt
       final_cash: finalCash,
+      highest_cash: highestCash, // new field
     };
 
     console.log('[GameSessionService] Attempting to log completed game session:', dataToInsert);
@@ -118,53 +120,44 @@ export class GameSessionService {
   }
 
   static async getLeaderboardData(limit: number = 10): Promise<LeaderboardEntry[]> {
-    console.log(`[GameSessionService] Fetching leaderboard data with limit: ${limit}`);
+    // Fastest Win: Only sessions with outcome 'win', sorted by months_played ascending
     const { data, error } = await supabase
       .from('game_sessions')
       .select(`
         final_cash,
+        highest_cash,
         outcome,
         months_played,
         user_profiles (display_name),
         industries (name)
       `)
-      .not('final_cash', 'is', null)
-      .order('final_cash', { ascending: false })
+      .eq('outcome', 'win')
+      .not('months_played', 'is', null)
+      .order('months_played', { ascending: true })
       .limit(limit);
 
     if (error) {
-      console.error('[GameSessionService] Error fetching leaderboard data:', error.message);
+      console.error('[GameSessionService] Error fetching fastest win leaderboard data:', error.message);
       return [];
     }
-
-    if (!data) {
-      console.log('[GameSessionService] No leaderboard data found.');
-      return [];
-    }
-
-    console.log('[GameSessionService] Raw leaderboard data from Supabase:', data);
-
-    // Transform the data to match LeaderboardEntry
-    const leaderboardEntries: LeaderboardEntry[] = data.map((session: any) => ({
-      // The 'any' type for session is used here because Supabase returns a complex nested structure based on the select query.
-      // We then pick the specific fields we need.
+    if (!data) return [];
+    return data.map((session: any) => ({
       display_name: session.user_profiles?.display_name || 'Anonymous',
       final_cash: session.final_cash,
+      highest_cash: session.highest_cash,
       industry_name: session.industries?.name || 'Unknown Industry',
       outcome: session.outcome,
       months_played: session.months_played,
     }));
-
-    console.log('[GameSessionService] Transformed leaderboard entries:', leaderboardEntries);
-    return leaderboardEntries;
   }
 
   static async getMostMonthsSurvivedLeaderboardData(limit: number = 10): Promise<LeaderboardEntry[]> {
-    console.log(`[GameSessionService] Fetching most months survived leaderboard data with limit: ${limit}`);
+    // Most Months Survived: All sessions, sorted by months_played descending
     const { data, error } = await supabase
       .from('game_sessions')
       .select(`
         final_cash,
+        highest_cash,
         outcome,
         months_played,
         user_profiles (display_name),
@@ -179,23 +172,14 @@ export class GameSessionService {
       console.error('[GameSessionService] Error fetching most months survived leaderboard data:', error.message);
       return [];
     }
-
-    if (!data) {
-      console.log('[GameSessionService] No most months survived leaderboard data found.');
-      return [];
-    }
-
-    console.log('[GameSessionService] Raw most months survived data from Supabase:', data);
-
-    const leaderboardEntries: LeaderboardEntry[] = data.map((session: any) => ({
+    if (!data) return [];
+    return data.map((session: any) => ({
       display_name: session.user_profiles?.display_name || 'Anonymous',
       final_cash: session.final_cash,
-      months_played: session.months_played,
+      highest_cash: session.highest_cash,
       industry_name: session.industries?.name || 'Unknown Industry',
       outcome: session.outcome,
+      months_played: session.months_played,
     }));
-
-    console.log('[GameSessionService] Transformed most months survived leaderboard entries:', leaderboardEntries);
-    return leaderboardEntries;
   }
 }

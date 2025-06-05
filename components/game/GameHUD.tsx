@@ -15,6 +15,7 @@ interface GameHUDProps {
   onBackButtonClick: () => void; // New prop for back button callback
   effectAnimations?: EffectAnimationItem[];      // New prop for animations
   onAnimationComplete?: (id: string) => void; // New prop for callback
+  monthsPlayed: number; // Accurate months survived, from GameScreen
 }
 
 const monthNames = [
@@ -60,7 +61,8 @@ const GameHUD: React.FC<GameHUDProps> = ({
   cardsCollectedCount, 
   onBackButtonClick,    
   effectAnimations = [],    // Default to empty array
-  onAnimationComplete = () => {} // Default to no-op function
+  onAnimationComplete = () => {}, // Default to no-op function
+  monthsPlayed
 }) => {
   const pnl = revenue - expenses;
 
@@ -125,6 +127,7 @@ const GameHUD: React.FC<GameHUDProps> = ({
         </div>
         <div className="text-[11px] xs:text-xs font-semibold px-1 text-center flex-shrink-0">
           {formatMonthYear(month, year)}
+          <span className="ml-2 text-indigo-300 font-bold">• {monthsPlayed} month{monthsPlayed !== 1 ? 's' : ''} survived</span>
         </div>
         <div className="relative flex-shrink-0">
           <StarRating ratingOutOf100={customerRating} />
@@ -170,7 +173,8 @@ const GameHUD: React.FC<GameHUDProps> = ({
             📊 PNL Report
           </button>
           <span className="text-[9px] xxs:text-[10px] xs:text-xs text-slate-200">
-            Cards: {cardsCollectedCount}/2
+            Cards this month: <span className="font-bold text-white">{cardsCollectedCount}/2</span>
+            <span className="ml-1 text-indigo-300">{cardsCollectedCount < 2 ? 'Collect 2 cards to advance' : 'Next month after cash collection!'}</span>
           </span>
         </div>
       </div>
