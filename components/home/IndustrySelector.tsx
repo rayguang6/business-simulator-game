@@ -4,10 +4,22 @@
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/lib/store';
+import { useEffect } from 'react';
+import { UserProfileService } from '@/lib/services/userProfileService';
 
 export default function IndustrySelector({ industries }: { industries: Industry[] }) {
   const router = useRouter();
   const setSelectedIndustry = useGameStore((state) => state.setSelectedIndustry);
+
+  // Client-side auth check
+  useEffect(() => {
+    (async () => {
+      const userProfile = await UserProfileService.getCurrentUserAndProfile();
+      if (!userProfile) {
+        router.replace('/');
+      }
+    })();
+  }, [router]);
 
   const startGame = async (industry: Industry) => {
     if (industry.isAvailable) {

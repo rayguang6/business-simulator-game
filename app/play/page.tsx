@@ -1,16 +1,8 @@
 import { getIndustries } from '@/lib/game-data/data-service';
 import IndustrySelector from '@/components/home/IndustrySelector';
 import Link from 'next/link';
-import { UserProfileService } from '@/lib/services/userProfileService';
-import { redirect } from 'next/navigation';
 
 export default async function HomePage() {
-  // Auth check: Only allow if user is logged in
-  const userProfile = await UserProfileService.getCurrentUserAndProfile();
-  if (!userProfile) {
-    return redirect('/');
-  }
-
   const industries = await getIndustries();
   
   return (

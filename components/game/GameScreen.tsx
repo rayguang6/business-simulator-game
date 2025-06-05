@@ -9,6 +9,7 @@ import CardDisplay from '@/components/game/Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/game-data/data-service';
 import { GameSessionService } from '@/lib/services/gameSessionService';
+import { UserProfileService } from '@/lib/services/userProfileService';
 
 // CardTypeEnum, Industry, Card, CardChoice are globally available from lib/global.d.ts
 
@@ -58,6 +59,14 @@ interface GameScreenProps {
 
 type MonthPhase = 'awaitingFirstCard' | 'awaitingSecondCard' | 'awaitingCash' | 'cardDecision';
 type GameOverStatus = 'win' | 'lose' | null; // New type for game over
+
+// Simple client-side auth check function
+async function checkAuthAndRedirect(router: ReturnType<typeof useRouter>) {
+  const userProfile = await UserProfileService.getCurrentUserAndProfile();
+  if (!userProfile) {
+    router.replace('/');
+  }
+}
 
 const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const router = useRouter();
@@ -109,6 +118,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
       });
     }
   }, [isMounted]);
+
+  // Auth check on mount
+  useEffect(() => {
+    checkAuthAndRedirect(router);
+  }, [router]);
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
