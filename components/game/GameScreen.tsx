@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/game-data/data-service';
 import { GameSessionService } from '@/lib/services/gameSessionService';
 import { UserProfileService } from '@/lib/services/userProfileService';
+import GameOver from './GameOver';
 
 // CardTypeEnum, Industry, Card, CardChoice are globally available from lib/global.d.ts
 
@@ -99,6 +100,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
 
   const [highestCash, setHighestCash] = useState(cash); // Track highest cash
 
+  const [playerName, setPlayerName] = useState<string>('');
+  const [newRecord, setNewRecord] = useState<{months: boolean, cash: boolean, cards: boolean}>({months: false, cash: false, cards: false});
+  const [shareMessage, setShareMessage] = useState<string>('');
+
   useEffect(() => {
     setIsMounted(true);
     setCash(industry.startingCash || 0);
@@ -130,6 +135,23 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   useEffect(() => {
     setHighestCash(prev => (cash > prev ? cash : prev));
   }, [cash]);
+
+  useEffect(() => {
+    (async () => {
+      const profile = await UserProfileService.getCurrentUserAndProfile();
+      setPlayerName(profile?.display_name || profile?.username || 'Player');
+      const sessions = await GameSessionService.getGameSessionsForCurrentUser();
+      const stats = GameSessionService.calculateUserStats(sessions);
+      setNewRecord({
+        months: monthsPlayed > (stats.longestSurvival || 0),
+        cash: highestCash > (stats.highestCash || 0),
+        cards: cardsPlayedThisSession > Math.max(...sessions.map(s => s.cards_played || 0), 0)
+      });
+      setShareMessage(
+        `I survived ${monthsPlayed} months as a ${industry.icon || '🏭'} ${industry.name} in Business Simulator! My highest cash: $${highestCash.toLocaleString()}. Can you beat me? ${window.location.origin}`
+      );
+    })();
+  }, [gameOverStatus]);
 
   const audioMap: Record<string, string> = {
     card: '/audio/card.mp3',
@@ -546,79 +568,42 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     console.log(`[GameScreen] Game concluded. Outcome: ${outcome}, Cash: ${finalCashValue}, Months: ${finalMonthsPlayed}, Cards: ${cardsPlayedThisSession}`);
   };
 
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'Business Simulator',
+        text: shareMessage,
+        url: window.location.origin
+      });
+    } else {
+      navigator.clipboard.writeText(shareMessage);
+      alert('Share message copied to clipboard!');
+    }
+  };
+
   // Render game over overlay if status is set
   const renderGameOverOverlay = () => {
     if (!gameOverStatus) return null;
-
-    const message = gameOverStatus === 'win' ? "You Win!" : "Game Over!";
-    const subMessage = gameOverStatus === 'win' ? "Congratulations! You've built a thriving business." : "Unfortunately, you've gone bankrupt.";
-
     // Calculate play time for display
     const playTimeMs = gameSessionStartTime ? Date.now() - gameSessionStartTime : 0;
     const playTimeMinutes = playTimeMs / (1000 * 60);
-    const formattedPlayTime = playTimeMinutes < 1 
-      ? `${Math.round(playTimeMinutes * 60)}s`
-      : `${Math.round(playTimeMinutes)}m`;
-
-    // Use local state values for the summary of the concluded game
-    const finalCashDisplay = cash; // Local cash state at game end
-    const cardsPlayedDisplay = cardsPlayedThisSession; // Local counter
-    const monthsSurvivedDisplay = monthsPlayed; // Local counter
-
     return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.85)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 3000, 
-        color: 'white',
-        textAlign: 'center',
-        fontFamily: 'sans-serif'
-      }}>
-        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>{message}</h1>
-        <p style={{ fontSize: '24px', marginBottom: '20px' }}>{subMessage}</p>
-        
-        <div style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          padding: '20px',
-          borderRadius: '12px',
-          marginBottom: '30px',
-          minWidth: '300px'
-        }}>
-          <h3 style={{ fontSize: '20px', marginBottom: '15px', color: '#4A90E2' }}>Session Summary</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '16px' }}>
-            <div>💰 Final Cash: ${finalCashDisplay.toLocaleString()}</div>
-            <div>⏱️ Play Time: {formattedPlayTime}</div>
-            <div>🃏 Cards Played: {cardsPlayedDisplay}</div>
-            <div>📅 Months Survived: {monthsSurvivedDisplay}</div>
-          </div>
-          <div style={{ marginTop: '10px', fontSize: '14px', opacity: 0.8 }}>
-            Industry: {industry.name}
-          </div>
-        </div>
-
-        <button 
-          onClick={() => router.push('/')}
-          style={{
-            padding: '15px 30px',
-            fontSize: '20px',
-            backgroundColor: '#4A90E2',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
-          }}
-        >
-          Return to Main Menu
-        </button>
+      <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <GameOver
+          outcome={gameOverStatus === 'win' ? 'win' : 'loss'}
+          monthsSurvived={monthsPlayed}
+          highestCash={highestCash}
+          cardsPlayed={cardsPlayedThisSession}
+          industryName={industry.name}
+          industryIcon={industry.icon}
+          playTimeMinutes={playTimeMinutes}
+          playerName={playerName}
+          newRecord={newRecord}
+          onShare={handleShare}
+          shareMessage={shareMessage}
+          onRestart={() => window.location.reload()}
+          onMainMenu={() => router.push('/')}
+        />
       </div>
     );
   };

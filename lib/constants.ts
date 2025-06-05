@@ -7,10 +7,10 @@ export enum CardTypeEnum {
 
 // Card Type Probability Definitions
 export const CARD_TYPE_DEFINITIONS = [
-  { type: CardTypeEnum.opportunity, weight: 5 }, // 60% - opportunities
-  { type: CardTypeEnum.problem,    weight: 10 }, // 20% - problems
-  { type: CardTypeEnum.market,     weight: 5 }, // 15% - market events
-  { type: CardTypeEnum.happy,      weight: 80 }   // 5% - happy events
+  { type: CardTypeEnum.opportunity, weight: 30 }, // 60% - opportunities
+  { type: CardTypeEnum.problem,    weight: 50 }, // 20% - problems
+  { type: CardTypeEnum.market,     weight: 15 }, // 15% - market events
+  { type: CardTypeEnum.happy,      weight: 5 }   // 5% - happy events
 ];
 
 // Calculate total weight for probability calculations
