@@ -53,7 +53,7 @@ export class RoadObjectsManager {
       actualCardType: specificCardType,
       cardId: cardId,
       x,
-      z: PerspectiveUtils.MAX_DEPTH,
+      z: 8, // Default card depth
       width: 128, // Default width, actual draw width is handled in draw()
       height: 128, // Default height, actual draw height is handled in draw()
       collected: false
@@ -68,7 +68,7 @@ export class RoadObjectsManager {
       type: 'cash',
       // no actualCardType for cash objects
       x,
-      z: PerspectiveUtils.MAX_DEPTH,
+      z: 4, // Closer to camera
       width: 128,
       height: 128,
       collected: false

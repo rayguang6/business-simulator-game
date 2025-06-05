@@ -105,15 +105,25 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [shareMessage, setShareMessage] = useState<string>('');
 
   useEffect(() => {
-    setIsMounted(true);
-    setCash(industry.startingCash || 0);
-    setRevenue(industry.startingRevenue || 0); 
-    setExpenses(industry.startingExpenses || 0);
-    setMonthsPlayed(0);
-    setCardsPlayedThisSession(0); 
-    setGameSessionStartTime(Date.now()); 
-    setGameOverStatus(null); 
-    setIsInitialized(true);
+    (async () => {
+      // Wait for background image to load before mounting
+      if (gameRunnerSceneRef.current && gameRunnerSceneRef.current.waitForBackgroundImageLoad) {
+        try {
+          await gameRunnerSceneRef.current.waitForBackgroundImageLoad();
+        } catch (e) {
+          // Ignore error, allow game to mount anyway
+        }
+      }
+      setIsMounted(true);
+      setCash(industry.startingCash || 0);
+      setRevenue(industry.startingRevenue || 0); 
+      setExpenses(industry.startingExpenses || 0);
+      setMonthsPlayed(0);
+      setCardsPlayedThisSession(0); 
+      setGameSessionStartTime(Date.now()); 
+      setGameOverStatus(null); 
+      setIsInitialized(true);
+    })();
   }, [industry]);
 
   useEffect(() => {
@@ -701,7 +711,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           onClick={(e) => e.stopPropagation()}
-          className="fixed top-28 sm:top-32 md:top-36 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg rounded-lg shadow-xl border-2 overflow-hidden"
+          className="fixed top-36 sm:top-40 md:top-44 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-lg rounded-lg shadow-xl border-2 overflow-hidden"
           style={{
             backgroundColor: 'rgba(30, 41, 59, 0.5)', // slate-800 with 95% opacity (slightly transparent)
             borderColor: CARD_TYPE_COLORS[currentDisplayCard.type as keyof typeof CARD_TYPE_COLORS] || CARD_TYPE_COLORS.opportunity,

@@ -123,11 +123,11 @@ const GameHUD: React.FC<GameHUDProps> = ({
             </svg>
           </button>
           <span className="mr-1.5 text-lg">☕</span>
-          <span className="text-[11px] xs:text-xs font-semibold truncate pr-1">{industryName}</span>
+          <span className="text-xs font-semibold truncate pr-1 max-w-[80px] sm:max-w-[120px]" title={industryName}>{industryName.length > 12 ? industryName.slice(0, 12) + '…' : industryName}</span>
         </div>
-        <div className="text-[11px] xs:text-xs font-semibold px-1 text-center flex-shrink-0">
+        <div className="text-xs font-semibold px-1 text-center flex-shrink-0">
           {formatMonthYear(month, year)}
-          <span className="ml-2 text-indigo-300 font-bold">• {monthsPlayed} month{monthsPlayed !== 1 ? 's' : ''} survived</span>
+          <span className="ml-2 text-indigo-300 font-bold">• {monthsPlayed} mths</span>
         </div>
         <div className="relative flex-shrink-0">
           <StarRating ratingOutOf100={customerRating} />
@@ -154,7 +154,7 @@ const GameHUD: React.FC<GameHUDProps> = ({
       {/* Main Stats Area: Fine-tuned paddings and gaps */}
       <div className="px-1.5 py-1 sm:px-2 sm:py-1.5 backdrop-blur-sm"
         style={{ 
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.02) 100%)',
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.1) 0%, rgba(15, 23, 42, 0.02) 100%)',
           borderBottom: '1px solid rgba(255,255,255,0.05)'
         }}
       >
@@ -172,9 +172,9 @@ const GameHUD: React.FC<GameHUDProps> = ({
           >
             📊 PNL Report
           </button>
-          <span className="text-[9px] xxs:text-[10px] xs:text-xs text-slate-200">
-            Cards this month: <span className="font-bold text-white">{cardsCollectedCount}/2</span>
-            <span className="ml-1 text-indigo-300">{cardsCollectedCount < 2 ? 'Collect 2 cards to advance' : 'Next month after cash collection!'}</span>
+          <span className="text-[9px] xxs:text-[10px] xs:text-xs text-slate-200 text-shadow-2xs">
+            Cards this month: <span className="font-bold text-white text-shadow-2xs">{cardsCollectedCount}/2</span>
+            <span className="ml-1 text-white text-shadow-2xs">{cardsCollectedCount < 2 ? 'Collect 2 cards to advance' : 'Next month after cash collection!'}</span>
           </span>
         </div>
       </div>

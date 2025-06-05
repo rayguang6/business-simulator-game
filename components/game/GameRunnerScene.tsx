@@ -15,6 +15,7 @@ export interface GameRunnerSceneHandles {
   spawnCard: (cardType: CardTypeEnum, cardId: string) => void;
   spawnCash: () => void;
   clearRoadObjects: () => void;
+  waitForBackgroundImageLoad: () => Promise<void>;
 }
 
 interface BackgroundConfig {
@@ -90,6 +91,16 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
     },
     clearRoadObjects: () => {
       roadObjectsRef.current?.clear();
+    },
+    waitForBackgroundImageLoad: async () => {
+      const config = { ...defaultConfig, ...backgroundConfig };
+      const backgroundImageSrc = getBackgroundImage(config);
+      if (!backgroundImageRef.current) {
+        backgroundImageRef.current = new BackgroundImageManager();
+      }
+      if (backgroundImageSrc) {
+        await backgroundImageRef.current.loadImageAsync(backgroundImageSrc);
+      }
     }
   }));
 
@@ -164,24 +175,20 @@ const GameRunnerScene = forwardRef<GameRunnerSceneHandles, GameRunnerSceneProps>
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Disabled - only draw background image, no overlays
-      // if (backgroundRendererRef.current) {
-      //   backgroundRendererRef.current.draw(ctx, canvas.width, canvas.height);
-      // }
-      
-      if (backgroundImageRef.current) {
+      // Only draw the background image if it is loaded
+      if (backgroundImageRef.current && backgroundImageRef.current.isReady()) {
         backgroundImageRef.current.draw(ctx, canvas.width, canvas.height);
       }
       
       // 3. Temporarily commented out emojis
-      // if (emojiManagerRef.current) {
-      //   const currentTime = Date.now();
-      //   if (!isPaused) {
-      //     emojiManagerRef.current.spawn(currentTime);
-      //     emojiManagerRef.current.update(16);
-      //   }
-      //   emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
-      // }
+      if (emojiManagerRef.current) {
+        const currentTime = Date.now();
+        if (!isPaused) {
+          emojiManagerRef.current.spawn(currentTime);
+          emojiManagerRef.current.update(16);
+        }
+        emojiManagerRef.current.draw(ctx, canvas.width, canvas.height);
+      }
       
       if (roadObjectsRef.current) {
         if (!isPaused) {

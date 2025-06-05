@@ -28,7 +28,7 @@ export class BackgroundRenderer {
   }
 
   private drawSky(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    const horizon = height * PerspectiveUtils.HORIZON_Y;
+    const horizon = height * PerspectiveUtils.getHorizonY();
     const gradient = ctx.createLinearGradient(0, 0, 0, horizon);
     gradient.addColorStop(0, this.config.skyTop!);
     gradient.addColorStop(1, this.config.skyBottom!);
@@ -37,13 +37,13 @@ export class BackgroundRenderer {
   }
 
   private drawGround(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    const horizon = height * PerspectiveUtils.HORIZON_Y;
+    const horizon = height * PerspectiveUtils.getHorizonY();
     ctx.fillStyle = this.config.ground!;
     ctx.fillRect(0, horizon, width, height - horizon);
   }
 
   private drawRoad(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    const horizon = height * PerspectiveUtils.HORIZON_Y;
+    const horizon = height * PerspectiveUtils.getHorizonY();
     const vanishing = { x: width / 2, y: horizon };
     const roadWidth = width * PerspectiveUtils.ROAD_WIDTH_BOTTOM;
     

@@ -28,6 +28,26 @@ export class BackgroundImageManager {
   }
 
   /**
+   * Load a background image and return a Promise that resolves when loaded
+   */
+  loadImageAsync(imagePath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.imagePath = imagePath;
+      this.image = new Image();
+      this.image.onload = () => {
+        this.imageLoaded = true;
+        resolve();
+      };
+      this.image.onerror = () => {
+        console.warn(`Failed to load background image: ${imagePath}`);
+        this.imageLoaded = false;
+        reject(new Error('Failed to load background image'));
+      };
+      this.image.src = imagePath;
+    });
+  }
+
+  /**
    * Update the background image path
    */
   updateImage(imagePath: string): void {

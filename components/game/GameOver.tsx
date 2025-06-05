@@ -55,6 +55,11 @@ export default function GameOver({
 
   return (
     <div className="bg-slate-800/95 rounded-2xl shadow-2xl p-6 sm:p-8 border-2 border-indigo-500/40 max-w-md mx-auto mt-16 relative">
+      {/* Username prominently at the top */}
+      <div className="flex flex-col items-center mb-2">
+        <span className="text-lg font-semibold text-indigo-300 tracking-wide mb-1">Player:</span>
+        <span className="text-2xl font-bold text-white mb-2">{playerName}</span>
+      </div>
       {/* Confetti or New Record badge */}
       <AnimatePresence>
         {(newRecord.months || newRecord.cash || newRecord.cards) && (

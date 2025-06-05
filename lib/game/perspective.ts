@@ -16,7 +16,12 @@ export interface ScreenPosition {
     // static readonly ROAD_WIDTH_BOTTOM = 0.6; // 60% of screen width
     // static readonly ROAD_WIDTH_TOP = 60; // Pixels at vanishing point
     // static readonly MAX_DEPTH = 10;
-    static readonly HORIZON_Y = 0.55; // 40% from top
+    static getHorizonY(): number {
+      if (typeof window !== 'undefined' && window.innerWidth < 640) {
+        return 0.55; // Mobile sweet spot
+      }
+      return 0.55; // Desktop sweet spot
+    }
     static readonly ROAD_WIDTH_BOTTOM = 0.6; // 60% of screen width
     static readonly ROAD_WIDTH_TOP = 60; // Pixels at vanishing point
     static readonly MAX_DEPTH = 10;
@@ -29,7 +34,7 @@ export interface ScreenPosition {
       screenWidth: number,
       screenHeight: number
     ): ScreenPosition {
-      const horizon = screenHeight * this.HORIZON_Y;
+      const horizon = screenHeight * this.getHorizonY();
       const vanishingX = screenWidth / 2;
       
       // Exact same formula as working RunnerScene.tsx
