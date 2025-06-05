@@ -57,9 +57,14 @@ export default function LeaderboardPage() {
     return match ? match.icon : '';
   };
 
-  const renderLeaderboardTable = (title: string, data: LeaderboardEntry[], type: 'fastestWin' | 'mostMonths') => {
+  const renderLeaderboardTable = (
+    title: string,
+    data: LeaderboardEntry[],
+    type: 'fastestWin' | 'mostMonths'
+  ) => {
     // Always show the table for Fastest Win, even if empty
     const showEmptyMessage = data.length === 0 && type === 'fastestWin';
+    const colSpan = type === 'mostMonths' ? 5 : 4;
     return (
       <div className="w-full max-w-4xl bg-slate-800 shadow-2xl rounded-xl overflow-hidden mb-12 border border-slate-700">
         <h2 className="text-2xl font-semibold text-center text-indigo-300 py-4 bg-slate-700/50">{title}</h2>
@@ -97,7 +102,7 @@ export default function LeaderboardPage() {
                 ))
               ) : showEmptyMessage ? (
                 <tr>
-                  <td colSpan={type === 'mostMonths' ? 5 : 4} className="p-6 text-center text-slate-400 text-lg">
+                  <td colSpan={colSpan} className="p-6 text-center text-slate-400 text-lg">
                     No one has won in this industry yet.<br />
                     <span className="text-indigo-300 font-semibold">Be the first to win and claim the top spot!</span>
                   </td>
@@ -116,7 +121,7 @@ export default function LeaderboardPage() {
         <Link href="/" legacyBehavior>
           <a className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-colors duration-200 text-base font-semibold">
             <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="mr-2"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            Back to Main Menu
+            Back
           </a>
         </Link>
       </div>
@@ -157,7 +162,7 @@ export default function LeaderboardPage() {
       
       {!isLoading && !error && (
         <>
-          {renderLeaderboardTable("Fastest Win (Fewest Months)", filterLeaderboard(cashLeaderboardData), 'fastestWin')}
+          {renderLeaderboardTable("Fastest Win", filterLeaderboard(cashLeaderboardData), 'fastestWin')}
           {renderLeaderboardTable("Most Months Survived", filterLeaderboard(monthsLeaderboardData), 'mostMonths')}
         </>
       )}

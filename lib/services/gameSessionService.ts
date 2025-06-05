@@ -72,50 +72,85 @@ export class GameSessionService {
   static calculateUserStats(sessions: GameSessionSupabase[]): any {
     if (!sessions || sessions.length === 0) {
       return {
-        totalGamesPlayed: 0, // Renamed from totalGamesStarted
-        gamesByIndustry: {},
+        totalGamesPlayed: 0,
         totalWins: 0,
         totalLosses: 0,
         totalQuits: 0,
-        averageDurationMinutes: 0,
+        winRate: 0,
         averageMonthsPlayed: 0,
+        averageDurationMinutes: 0,
         highestCash: 0,
+        bestStreak: 0,
+        mostPlayedIndustry: null,
+        fastestWin: null,
+        longestSurvival: null,
+        gamesByIndustry: {},
       };
     }
 
     const totalGamesPlayed = sessions.length;
+    const totalWins = sessions.filter(s => s.outcome === 'win').length;
+    const totalLosses = sessions.filter(s => s.outcome === 'loss' || s.outcome === 'bankrupt').length;
+    const totalQuits = sessions.filter(s => s.outcome === 'quit').length;
+    const winRate = totalGamesPlayed > 0 ? Math.round((totalWins / totalGamesPlayed) * 100) : 0;
+
+    const completedSessions = sessions.filter(s => s.duration_minutes != null && s.outcome !== 'started');
+    const averageDurationMinutes = completedSessions.length > 0 
+      ? completedSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / completedSessions.length
+      : 0;
+    const averageMonthsPlayed = completedSessions.length > 0
+      ? completedSessions.reduce((sum, s) => sum + (s.months_played || 0), 0) / completedSessions.length
+      : 0;
+    const highestCash = Math.max(...sessions.map(s => s.highest_cash ?? s.final_cash ?? 0).filter(c => c !== null), 0);
+
+    // Best win streak (consecutive wins)
+    let bestStreak = 0, currentStreak = 0;
+    for (const s of sessions) {
+      if (s.outcome === 'win') {
+        currentStreak++;
+        if (currentStreak > bestStreak) bestStreak = currentStreak;
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    // Most played industry
     const gamesByIndustry = sessions.reduce((acc, session) => {
       if (session.industry_id) {
         acc[session.industry_id] = (acc[session.industry_id] || 0) + 1;
       }
       return acc;
     }, {} as Record<string, number>);
+    let mostPlayedIndustry = null;
+    let maxPlays = 0;
+    for (const [ind, count] of Object.entries(gamesByIndustry)) {
+      if (count > maxPlays) {
+        mostPlayedIndustry = ind;
+        maxPlays = count;
+      }
+    }
 
-    const totalWins = sessions.filter(s => s.outcome === 'win').length;
-    // Assuming 'bankrupt' is also a loss. If you use 'bankrupt' as a distinct outcome in DB, adjust here.
-    const totalLosses = sessions.filter(s => s.outcome === 'loss' || s.outcome === 'bankrupt').length; 
-    const totalQuits = sessions.filter(s => s.outcome === 'quit').length;
-    
-    const completedSessions = sessions.filter(s => s.duration_minutes != null && s.outcome !== 'started'); // Exclude 'started' if any exist
-    const averageDurationMinutes = completedSessions.length > 0 
-        ? completedSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / completedSessions.length
-        : 0;
+    // Fastest win (fewest months)
+    const winSessions = sessions.filter(s => s.outcome === 'win' && s.months_played != null);
+    const fastestWin = winSessions.length > 0 ? Math.min(...winSessions.map(s => s.months_played!)) : null;
 
-    const averageMonthsPlayed = completedSessions.length > 0
-        ? completedSessions.reduce((sum, s) => sum + (s.months_played || 0), 0) / completedSessions.length
-        : 0;
-
-    const highestCash = Math.max(...sessions.map(s => s.final_cash || 0).filter(c => c !== null), 0);
+    // Longest survival (most months)
+    const longestSurvival = completedSessions.length > 0 ? Math.max(...completedSessions.map(s => s.months_played || 0)) : null;
 
     return {
       totalGamesPlayed,
-      gamesByIndustry,
       totalWins,
       totalLosses,
       totalQuits,
-      averageDurationMinutes: parseFloat(averageDurationMinutes.toFixed(1)),
+      winRate,
       averageMonthsPlayed: parseFloat(averageMonthsPlayed.toFixed(1)),
+      averageDurationMinutes: parseFloat(averageDurationMinutes.toFixed(1)),
       highestCash,
+      bestStreak,
+      mostPlayedIndustry,
+      fastestWin,
+      longestSurvival,
+      gamesByIndustry,
     };
   }
 

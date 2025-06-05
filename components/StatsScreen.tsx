@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { GameSessionService } from '@/lib/services/gameSessionService';
 import { UserProfileService } from '@/lib/services/userProfileService';
+import { getIndustries } from '@/lib/game-data/data-service';
 
 interface DisplayStats {
   totalGamesStarted: number;
@@ -15,37 +16,43 @@ interface DisplayStats {
 export default function StatsScreen() {
   const router = useRouter();
   const [sessions, setSessions] = useState<GameSessionSupabase[]>([]);
-  const [displayStats, setDisplayStats] = useState<DisplayStats | null>(null);
+  const [displayStats, setDisplayStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [industries, setIndustries] = useState<Industry[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       const profile = await UserProfileService.getCurrentUserAndProfile();
       setUserProfile(profile);
-
       if (!profile || !profile.id) {
-        console.warn('[StatsScreen] No user profile found. Cannot fetch stats.');
         setIsLoading(false);
-        // Optionally, redirect to login or show a message
         return;
       }
-
       try {
-        const fetchedSessions = await GameSessionService.getGameSessionsForCurrentUser();
+        const [fetchedSessions, allIndustries] = await Promise.all([
+          GameSessionService.getGameSessionsForCurrentUser(),
+          getIndustries()
+        ]);
         setSessions(fetchedSessions);
+        setIndustries(allIndustries);
         const calculatedStats = GameSessionService.calculateUserStats(fetchedSessions);
         setDisplayStats(calculatedStats);
       } catch (error) {
         console.error('[StatsScreen] Error fetching or calculating stats:', error);
-        // Handle error state in UI if necessary
       }
       setIsLoading(false);
     };
-
     fetchData();
   }, []);
+
+  // Helper to get industry name/icon
+  const getIndustry = (id?: string | null) => {
+    if (!id) return { name: 'Unknown', icon: '🏢' };
+    const found = industries.find(i => i.id === id);
+    return found ? { name: found.name, icon: found.icon } : { name: id, icon: '🏢' };
+  };
 
   if (isLoading) {
     return (
@@ -127,66 +134,115 @@ export default function StatsScreen() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-2xl mx-auto">
           <motion.button
-            onClick={() => router.push('/')}
-            className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+            onClick={() => router.push('/')} 
+            className="mb-6 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors flex items-center"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            ← Back to Menu
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="mr-2"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            Back to Menu
           </motion.button>
-          
-          <h1 className="text-3xl font-bold mb-8 text-center">📊 Your Game Statistics {userProfile?.display_name ? `for ${userProfile.display_name}` : ''}</h1>
-          
-          {/* Stats Cards - Updated for Supabase data */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-              <div className="text-2xl mb-2">🎮</div>
-              <div className="text-2xl font-bold">{displayStats.totalGamesStarted}</div>
-              <div className="text-slate-400">Total Games Started</div>
-            </div>
-            
-            {/* Placeholder for more stats like Win Rate, Best Cash once available */}
-            {/* For now, let's show games by industry if available */}
-            {Object.keys(displayStats.gamesByIndustry).length > 0 && (
-                <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 md:col-span-1">
-                    <div className="text-2xl mb-2">🏢</div>
-                    <div className="text-slate-400 mb-1">Games by Industry</div>
-                    {Object.entries(displayStats.gamesByIndustry).map(([industry, count]) => (
-                        <div key={industry} className="flex justify-between text-sm">
-                            <span className="capitalize">{industry.replace(/[-_]/g, ' ')}</span>
-                            <span>{count}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-          </div>
+          <h1 className="text-3xl font-bold mb-8 text-center text-indigo-400">📊 Your Game Summary {userProfile?.display_name ? `for ${userProfile.display_name}` : ''}</h1>
 
-          {/* Recent Games - Updated for Supabase data */}
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-semibold mb-4">🕒 Recent Game Starts</h2>
-            <div className="space-y-3">
-              {sessions.slice(0, 5).map((session) => ( // Show latest 5, sessions are already ordered by start_time desc
-                <div key={session.id} className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                  <div>
-                    <span className="font-medium capitalize">{session.industry_id.replace(/[-_]/g, ' ')}</span>
-                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                      session.outcome === 'started' ? 'bg-blue-900/50 text-blue-300' :
-                      session.outcome === 'won' ? 'bg-green-900/50 text-green-300' :
-                      session.outcome === 'bankrupt' || session.outcome === 'loss' ? 'bg-red-900/50 text-red-300' :
-                      'bg-gray-900/50 text-gray-300'
-                    }`}>
-                      {session.outcome || 'Unknown'}
-                    </span>
-                  </div>
-                  <div className="text-right text-sm text-slate-400">
-                    <div>Started: {new Date(session.start_time).toLocaleDateString()} {new Date(session.start_time).toLocaleTimeString()}</div>
-                    {/* More details like final cash, months played can be added when available */}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* Compact Stats List */}
+          <ul className="divide-y divide-slate-700 bg-slate-800 rounded-lg border border-slate-700 mb-8">
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🎮</span>
+              <span className="flex-1 text-slate-300">Games Played</span>
+              <span className="font-bold">{displayStats.totalGamesPlayed}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🏆</span>
+              <span className="flex-1 text-slate-300">Wins</span>
+              <span className="font-bold text-green-400">{displayStats.totalWins}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">💀</span>
+              <span className="flex-1 text-slate-300">Losses</span>
+              <span className="font-bold text-red-400">{displayStats.totalLosses}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🚪</span>
+              <span className="flex-1 text-slate-300">Quits</span>
+              <span className="font-bold text-yellow-300">{displayStats.totalQuits}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">📈</span>
+              <span className="flex-1 text-slate-300">Win Rate</span>
+              <span className="font-bold">{displayStats.winRate}%</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">⏱️</span>
+              <span className="flex-1 text-slate-300">Avg. Game Duration</span>
+              <span className="font-bold">{displayStats.averageDurationMinutes} min</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">📅</span>
+              <span className="flex-1 text-slate-300">Avg. Months Survived</span>
+              <span className="font-bold">{displayStats.averageMonthsPlayed}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">💰</span>
+              <span className="flex-1 text-slate-300">Highest Cash</span>
+              <span className="font-bold text-amber-300">${displayStats.highestCash.toLocaleString()}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🔥</span>
+              <span className="flex-1 text-slate-300">Best Win Streak</span>
+              <span className="font-bold">{displayStats.bestStreak}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🏢</span>
+              <span className="flex-1 text-slate-300">Most Played Industry</span>
+              <span className="font-bold flex items-center gap-1">
+                <span>{getIndustry(displayStats.mostPlayedIndustry).icon}</span>
+                {getIndustry(displayStats.mostPlayedIndustry).name}
+              </span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">⚡</span>
+              <span className="flex-1 text-slate-300">Fastest Win (Months)</span>
+              <span className="font-bold">{displayStats.fastestWin ?? '-'}</span>
+            </li>
+            <li className="flex items-center px-4 py-3 gap-3">
+              <span className="text-xl">🕰️</span>
+              <span className="flex-1 text-slate-300">Longest Survival (Months)</span>
+              <span className="font-bold">{displayStats.longestSurvival ?? '-'}</span>
+            </li>
+          </ul>
+
+          {/* Recent Games */}
+          <div className="bg-slate-800 rounded-lg border border-slate-700 mb-8">
+            <h2 className="text-xl font-semibold px-4 pt-4 pb-2">🕒 Recent Games</h2>
+            <ul className="divide-y divide-slate-700">
+              {sessions.slice(0, 5).map((session) => {
+                const ind = getIndustry(session.industry_id);
+                return (
+                  <li key={session.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{ind.icon}</span>
+                      <span className="font-medium capitalize">{ind.name}</span>
+                      <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                        session.outcome === 'started' ? 'bg-blue-900/50 text-blue-300' :
+                        session.outcome === 'win' ? 'bg-green-900/50 text-green-300' :
+                        session.outcome === 'bankrupt' || session.outcome === 'loss' ? 'bg-red-900/50 text-red-300' :
+                        session.outcome === 'quit' ? 'bg-yellow-900/50 text-yellow-300' :
+                        'bg-gray-900/50 text-gray-300'
+                      }`}>
+                        {session.outcome || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-slate-300">
+                      <div>Started: {new Date(session.start_time).toLocaleDateString()} {new Date(session.start_time).toLocaleTimeString()}</div>
+                      {session.months_played != null && <div>Months: <span className="font-bold text-sky-300">{session.months_played}</span></div>}
+                      {session.highest_cash != null && <div>Highest Cash: <span className="font-bold text-amber-300">${session.highest_cash.toLocaleString()}</span></div>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       </div>
