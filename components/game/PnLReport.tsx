@@ -1,178 +1,141 @@
 // components/game/PnLReport.tsx
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 
 interface PnLReportProps {
-  gameState: GameState;
+  gameState: {
+    recentDecisions?: Array<{
+      month: number;
+      cardTitle: string;
+      choiceLabel: string;
+      effects: any;
+    }>;
+    year?: number;
+  };
   onClose: () => void;
 }
 
-export default function PnLReport({ gameState, onClose }: PnLReportProps) {
-  const profit = gameState.revenue - gameState.expenses;
-  const isProfitable = profit > 0;
-  
-  // Group history by month
-  const historyByMonth = gameState.history.reduce((acc, entry) => {
-    const month = entry.month;
-    if (!acc[month]) {
-      acc[month] = [];
-    }
-    acc[month].push(entry);
-    return acc;
-  }, {} as Record<number, any[]>);
+const monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
-  // Array of month names for display
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+export default function PnLReport({ gameState, onClose }: PnLReportProps) {
+  const { recentDecisions = [], year = 2025 } = gameState;
+
+  // Pagination state
+  const PAGE_SIZE = 6;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(recentDecisions.length / PAGE_SIZE);
+
+  // Show newest first
+  const orderedDecisions = [...recentDecisions].reverse();
+  const paginatedDecisions = orderedDecisions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', { 
+      style: 'currency', 
+      currency: 'USD', 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 0 
+    }).format(value);
+  };
+
+  // Get month name from month number
+  const getMonthName = (monthNum: number) => monthNames[monthNum % 12];
 
   return (
-    <div className="bg-slate-700 rounded-xl shadow-lg p-4 border-2 border-blue-700/30">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-white">Financial Report</h2>
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      onClick={e => e.stopPropagation()}
+      className="fixed top-20 sm:top-24 md:top-28 bottom-4 sm:bottom-5 md:bottom-6 left-0 right-0 mx-auto z-[1050] flex flex-col w-[95%] sm:w-[90%] max-w-2xl rounded-lg shadow-xl border-2 overflow-hidden"
+      style={{ 
+        backgroundColor: 'rgba(15, 23, 42, 0.98)', 
+        borderColor: '#334155', 
+        boxShadow: '0 0 40px rgba(59, 130, 246, 0.15)' 
+      }}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center px-4 sm:px-6 pt-4 pb-3 border-b border-slate-700">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">📋 Decision History</h2>
+        </div>
         <button
           onClick={onClose}
-          className="text-slate-300 hover:text-white"
+          className="text-slate-400 hover:text-white text-2xl font-bold px-2 transition-colors"
           aria-label="Close"
         >
           ✕
         </button>
       </div>
 
-      {/* Current Financials */}
-      <div className="bg-slate-800 rounded-lg p-3 mb-4">
-        <h3 className="text-sm font-medium text-slate-400 mb-2">Current Financials</h3>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <div className="text-xs text-slate-400">Cash</div>
-            <div className="text-lg font-bold text-amber-400">${gameState.cash.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-400">Revenue</div>
-            <div className="text-lg font-bold text-emerald-400">${gameState.revenue.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-400">Expenses</div>
-            <div className="text-lg font-bold text-rose-400">${gameState.expenses.toLocaleString()}</div>
-          </div>
-        </div>
-        <div className="mt-2 pt-2 border-t border-slate-700">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-slate-300">Monthly Profit</div>
-            <div className={`text-lg font-bold ${isProfitable ? 'text-green-400' : 'text-red-400'}`}>
-              ${profit.toLocaleString()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Active Effects */}
-      {gameState.temporary_effects && gameState.temporary_effects.length > 0 && (
-        <div className="bg-slate-800 rounded-lg p-3 mb-4">
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Active Effects</h3>
-          <div className="space-y-2">
-            {gameState.temporary_effects.map((effect, index) => (
-              <div 
-                key={index}
-                className="flex justify-between items-center p-2 bg-slate-700/50 rounded-md"
-              >
-                <span className="text-sm text-slate-300 truncate flex-1 mr-2">{effect.name}</span>
-                <div className="flex flex-col items-end">
-                  {effect.revenue ? (
-                    <span className={`text-xs ${effect.revenue > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      Revenue: {effect.revenue > 0 ? '+' : ''}${effect.revenue}/mo
-                    </span>
-                  ) : null}
-                  
-                  {effect.expenses ? (
-                    <span className={`text-xs ${effect.expenses < 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      Expenses: {effect.expenses > 0 ? '+' : ''}${effect.expenses}/mo
-                    </span>
-                  ) : null}
-                  
+      {/* Content: Simple Decision List */}
+      <div className="overflow-y-auto p-4 sm:p-6 flex-grow space-y-4">
+        {orderedDecisions.length === 0 ? (
+          <div className="text-slate-400 text-center">No decisions made yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {paginatedDecisions.map((decision, index) => (
+              <div key={index} className="bg-slate-900/50 rounded-lg p-3 border border-slate-600">
+                <div className="flex items-center space-x-3 mb-1">
                   <span className="text-xs text-slate-400">
-                    {effect.monthsRemaining} month{effect.monthsRemaining !== 1 ? 's' : ''} left
+                    {getMonthName(decision.month)} {year + Math.floor(decision.month / 12)}
                   </span>
+                  <span className="text-xs text-blue-300">{decision.cardTitle}</span>
+                  <span className="text-xs text-slate-300">→ {decision.choiceLabel}</span>
                 </div>
+                {decision.effects && Object.keys(decision.effects).length > 0 && (
+                  <div className="flex flex-wrap gap-2 text-xs mt-1">
+                    {decision.effects.cash !== undefined && (
+                      <span className={`px-2 py-1 rounded-full ${decision.effects.cash > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                        Cash: {decision.effects.cash > 0 ? '+' : ''}{formatCurrency(decision.effects.cash)}
+                      </span>
+                    )}
+                    {decision.effects.revenue !== undefined && (
+                      <span className={`px-2 py-1 rounded-full ${decision.effects.revenue > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                        Revenue: {decision.effects.revenue > 0 ? '+' : ''}{formatCurrency(decision.effects.revenue)}/mo
+                      </span>
+                    )}
+                    {decision.effects.expenses !== undefined && (
+                      <span className={`px-2 py-1 rounded-full ${decision.effects.expenses < 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                        Expenses: {decision.effects.expenses > 0 ? '+' : ''}{formatCurrency(decision.effects.expenses)}/mo
+                      </span>
+                    )}
+                    {decision.effects.customerRating !== undefined && (
+                      <span className={`px-2 py-1 rounded-full ${decision.effects.customerRating > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                        Rating: {decision.effects.customerRating > 0 ? '+' : ''}{decision.effects.customerRating} pts
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
+            {/* Pagination Controls */}
+            <div className="flex justify-center items-center gap-4 mt-6">
+              <button
+                className="px-3 py-1 rounded bg-slate-700 text-white disabled:opacity-40"
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
+                Previous
+              </button>
+              <span className="text-slate-300 text-sm">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                className="px-3 py-1 rounded bg-slate-700 text-white disabled:opacity-40"
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Monthly History */}
-      <div className="bg-slate-800 rounded-lg p-3">
-        <h3 className="text-sm font-medium text-slate-400 mb-2">Monthly History</h3>
-        
-        <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-          {Object.keys(historyByMonth)
-            .map(Number)
-            .sort((a, b) => b - a) // Sort newest to oldest
-            .map(month => {
-              const monthEntries = historyByMonth[month];
-              
-              // Calculate monthly totals
-              const monthTotals = monthEntries.reduce((totals, entry) => {
-                return {
-                  cash: totals.cash + (entry.effects.cash || 0),
-                  revenue: totals.revenue + (entry.effects.revenue || 0),
-                  expenses: totals.expenses + (entry.effects.expenses || 0),
-                };
-              }, { cash: 0, revenue: 0, expenses: 0 });
-              
-              return (
-                <div key={month} className="pb-2 border-b border-slate-700 last:border-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <h4 className="text-sm font-medium text-blue-300">
-                      {monthNames[(month - 1) % 12]} {Math.floor((month - 1) / 12) + 2025}
-                    </h4>
-                    <div className={`text-xs font-semibold ${monthTotals.cash >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {monthTotals.cash > 0 ? '+' : ''}${monthTotals.cash.toLocaleString()}
-                    </div>
-                  </div>
-                  
-                  {/* Month entries */}
-                  <div className="space-y-1">
-                    {monthEntries.map((entry, idx) => (
-                      <div key={idx} className="text-xs flex justify-between bg-slate-700/30 px-2 py-1 rounded">
-                        <span className="text-slate-300 truncate flex-1 mr-2">{entry.choice_label}</span>
-                        <span className="flex space-x-2 flex-shrink-0">
-                          {entry.effects.cash !== 0 && (
-                            <span className={entry.effects.cash > 0 ? 'text-green-400' : 'text-red-400'}>
-                              ${entry.effects.cash}
-                            </span>
-                          )}
-                          {entry.effects.revenue !== 0 && (
-                            <span className={entry.effects.revenue > 0 ? 'text-green-400' : 'text-red-400'}>
-                              Rev: ${entry.effects.revenue}
-                            </span>
-                          )}
-                          {entry.effects.expenses !== 0 && (
-                            <span className={entry.effects.expenses < 0 ? 'text-green-400' : 'text-red-400'}>
-                              Exp: ${entry.effects.expenses}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-        </div>
+        )}
       </div>
-
-      {/* Close button */}
-      <div className="mt-4 text-center">
-        <motion.button
-          onClick={onClose}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Continue Playing
-        </motion.button>
-      </div>
-    </div>
+    </motion.div>
   );
 }

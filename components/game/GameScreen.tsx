@@ -11,6 +11,7 @@ import { getRandomInRange, getRandomInt, getRandomPercentInRange } from '@/lib/g
 import { GameSessionService } from '@/lib/services/gameSessionService';
 import { UserProfileService } from '@/lib/services/userProfileService';
 import GameOver from './GameOver';
+import PnLReport from './PnLReport';
 
 // CardTypeEnum, Industry, Card, CardChoice are globally available from lib/global.d.ts
 
@@ -103,6 +104,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
   const [playerName, setPlayerName] = useState<string>('');
   const [newRecord, setNewRecord] = useState<{months: boolean, cash: boolean, cards: boolean}>({months: false, cash: false, cards: false});
   const [shareMessage, setShareMessage] = useState<string>('');
+
+  const [showPnLReport, setShowPnLReport] = useState(false);
+  
+  // Track decisions across all months for PnL Report
+  const [decisionHistory, setDecisionHistory] = useState<Array<{
+    month: number;
+    cardTitle: string;
+    choiceLabel: string;
+    effects: any;
+  }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -503,12 +514,27 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     let tempExpenses = expenses;
     let tempCustomerRating = customerRating;
 
+    // Calculate actual effects for tracking
+    const actualEffects: any = {};
     effectsDetails.forEach(effect => {
       switch (effect.metric) {
-        case 'cash': tempCash += effect.value; break;
-        case 'revenue': tempRevenue += effect.value; break;
-        case 'expenses': tempExpenses += effect.value; break;
-        case 'customerRating': tempCustomerRating = Math.min(5, Math.max(1, tempCustomerRating + effect.value)); break;
+        case 'cash': 
+          tempCash += effect.value; 
+          actualEffects.cash = effect.value;
+          break;
+        case 'revenue': 
+          tempRevenue += effect.value; 
+          actualEffects.revenue = effect.value;
+          break;
+        case 'expenses': 
+          tempExpenses += effect.value; 
+          actualEffects.expenses = effect.value;
+          break;
+        case 'customerRating': 
+          const oldRating = tempCustomerRating;
+          tempCustomerRating = Math.min(100, Math.max(0, tempCustomerRating + effect.value)); 
+          actualEffects.customerRating = tempCustomerRating - oldRating;
+          break;
       }
     });
 
@@ -516,6 +542,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     setRevenue(tempRevenue);
     setExpenses(tempExpenses);
     setCustomerRating(tempCustomerRating);
+    
+    // Track this decision for PnL Report
+    setDecisionHistory(prev => [...prev, {
+      month: monthsPlayed, // Use months played as the month counter
+      cardTitle: currentDisplayCard.title,
+      choiceLabel: choice.label,
+      effects: actualEffects
+    }]);
     
     const newAnimations = effectsDetails.map(detail => ({ ...detail, id: Date.now().toString() + Math.random() }));
     setEffectAnimations(prev => [...prev, ...newAnimations]);
@@ -618,6 +652,30 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
     );
   };
   
+  // Pass this to GameHUD
+  const handlePnlReportClick = () => setShowPnLReport(true);
+
+  // Build a compatible gameState object for PnLReport
+  const gameStateForReport = {
+    cash,
+    revenue,
+    expenses,
+    month,
+    customer_rating: customerRating,
+    temporary_effects: [], // No temp effects yet
+    month_end: monthPhase === 'awaitingCash',
+    industry_id: industry.id,
+    history: [], // Not used
+    game_over: !!gameOverStatus,
+    year,
+    win_condition_met: gameOverStatus === 'win',
+    active_cards: [],
+    monthsPlayed,
+    recentDecisions: decisionHistory,
+    revenueBreakdown: [],
+    expenseBreakdown: [],
+    activeEffects: [],
+  };
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
@@ -677,6 +735,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
           effectAnimations={effectAnimations}
           onAnimationComplete={handleAnimationComplete}
           monthsPlayed={monthsPlayed}
+          onPnlReportClick={handlePnlReportClick}
         />
       )}
       
@@ -725,6 +784,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ industry, cards }) => {
             />
           </div>
         </motion.div>
+      )}
+
+      {/* PnL Report Modal */}
+      {showPnLReport && (
+        <PnLReport 
+          gameState={gameStateForReport} 
+          onClose={() => setShowPnLReport(false)}
+        />
       )}
     </div>
   );

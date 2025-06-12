@@ -16,6 +16,7 @@ interface GameHUDProps {
   effectAnimations?: EffectAnimationItem[];      // New prop for animations
   onAnimationComplete?: (id: string) => void; // New prop for callback
   monthsPlayed: number; // Accurate months survived, from GameScreen
+  onPnlReportClick: () => void; // Add this prop
 }
 
 const monthNames = [
@@ -62,7 +63,8 @@ const GameHUD: React.FC<GameHUDProps> = ({
   onBackButtonClick,    
   effectAnimations = [],    // Default to empty array
   onAnimationComplete = () => {}, // Default to no-op function
-  monthsPlayed
+  monthsPlayed,
+  onPnlReportClick
 }) => {
   const pnl = revenue - expenses;
 
@@ -167,7 +169,7 @@ const GameHUD: React.FC<GameHUDProps> = ({
         {/* PNL Report Button and Month Progress Area: Fine-tuned */}
         <div className="flex justify-start items-center gap-1.5 xxs:gap-2 xs:gap-3">
           <button 
-            onClick={handlePnlReportClick}
+            onClick={onPnlReportClick}
             className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-1 px-1.5 xxs:px-2 rounded text-[9px] xxs:text-[10px] xs:text-xs shadow-md transition-colors"
           >
             📊 PNL Report
